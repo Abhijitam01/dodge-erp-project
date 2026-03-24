@@ -2,9 +2,10 @@
   "name": "server",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "ingest": "node src/ingest.ts"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,9 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.0",
+    "nodemon": "^3.1.14",
+    "typescript": "^6.0.2"
   }
 }
