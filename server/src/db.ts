@@ -24,6 +24,16 @@ export function query<T = Record<string , unknown>>(
     return getDB().prepare(sql).all(...params) as T[];
 }
 
+export function queryOne<T = Record<string, unknown>>(
+    sql: string,
+    params: unknown[] = []
+): T | undefined {
+    if (!sql.trim().toUpperCase().startsWith('SELECT')) {
+        throw new Error('Only SELECT queries are allowed');
+    }
+    return getDB().prepare(sql).get(...params) as T | undefined;
+}
+
 export function closeDB() {
     if(_db) {
         _db.close();
