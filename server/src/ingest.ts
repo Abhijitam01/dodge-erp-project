@@ -17,11 +17,19 @@ const graph = {
 };
 
 const nodeSet = new Set<string>();
+const edgeSet = new Set<string>();
 
 function safeAddNode(node: any) {
   if (!nodeSet.has(node.id)) {
     nodeSet.add(node.id);
     graph.nodes.push(node);
+  }
+}
+
+function safeAddEdge(edge: any) {
+  if (!edgeSet.has(edge.id)) {
+    edgeSet.add(edge.id);
+    graph.edges.push(edge);
   }
 }
 
@@ -66,16 +74,16 @@ const deliveries = readJSONL(
 );
 
 const sortedInvoices = [...invoices].sort(
-    (a, b) =>
-      new Date(a.creationDate).getTime() -
-      new Date(b.creationDate).getTime()
-  );
-  
-  const sortedDeliveries = [...deliveries].sort(
-    (a, b) =>
-      new Date(a.creationDate).getTime() -
-      new Date(b.creationDate).getTime()
-  );
+  (a, b) =>
+    new Date(a.creationDate).getTime() -
+    new Date(b.creationDate).getTime()
+);
+
+const sortedDeliveries = [...deliveries].sort(
+  (a, b) =>
+    new Date(a.creationDate).getTime() -
+    new Date(b.creationDate).getTime()
+);
 
 sortedInvoices.forEach((inv) => {
   if (!inv.billingDocument) return;
@@ -99,7 +107,6 @@ payments.forEach((p) => {
   });
 });
 
-
 customers.forEach((c) => {
   if (!c.customer) return;
 
@@ -111,10 +118,20 @@ customers.forEach((c) => {
   });
 });
 
+sortedDeliveries.forEach((d) => {
+  if (!d.deliveryDocument) return;
+
+  safeAddNode({
+    id: `delivery-${d.deliveryDocument}`,
+    type: "delivery",
+    label: `Delivery ${d.deliveryDocument}`,
+    metadata: d,
+  });
+});
 
 sortedInvoices.forEach((inv) => {
   if (inv.accountingDocument) {
-    graph.edges.push({
+    safeAddEdge({
       id: `invoice-${inv.billingDocument}-payment-${inv.accountingDocument}`,
       source: `invoice-${inv.billingDocument}`,
       target: `payment-${inv.accountingDocument}`,
@@ -123,10 +140,9 @@ sortedInvoices.forEach((inv) => {
   }
 });
 
-
 sortedInvoices.forEach((inv) => {
   if (inv.soldToParty) {
-    graph.edges.push({
+    safeAddEdge({
       id: `invoice-${inv.billingDocument}-customer-${inv.soldToParty}`,
       source: `invoice-${inv.billingDocument}`,
       target: `customer-${inv.soldToParty}`,
@@ -134,29 +150,44 @@ sortedInvoices.forEach((inv) => {
     });
   }
 });
-sortedDeliveries.forEach((d) => {
-    if (!d.deliveryDocument) return;
-  
-    safeAddNode({
-      id: `delivery-${d.deliveryDocument}`,
-      type: "delivery",
-      label: `Delivery ${d.deliveryDocument}`,
-      metadata: d,
+
+const minLen = Math.min(
+  sortedDeliveries.length,
+  sortedInvoices.length
+);
+
+for (let i = 0; i < minLen; i++) {
+  const delivery = sortedDeliveries[i];
+  const invoice = sortedInvoices[i];
+
+  if (delivery?.deliveryDocument && invoice?.billingDocument) {
+    safeAddEdge({
+      id: `delivery-${delivery.deliveryDocument}-invoice-${invoice.billingDocument}`,
+      source: `delivery-${delivery.deliveryDocument}`,
+      target: `invoice-${invoice.billingDocument}`,
+      type: "BILLED_BY",
+      metadata: {
+        method: "time-based",
+        confidence: "medium",
+      },
     });
-  });
+  }
+}
 
 console.log("Invoices loaded:", invoices.length);
 console.log("Payments loaded:", payments.length);
 console.log("Customers loaded:", customers.length);
-console.log("Nodes created:", graph.nodes.length);
-console.log("Edges created:", graph.edges.length);
 console.log("Deliveries loaded:", deliveries.length);
+console.log("Final Nodes:", graph.nodes.length);
+console.log("Final Edges:", graph.edges.length);
+
+console.log("Sample Invoice:", invoices[0]);
+console.log("Sample Delivery:", deliveries[0]);
+console.log("Sample Edge:", graph.edges[0]);
 
 fs.writeFileSync(
   path.join(repoRoot, "data", "graph.json"),
   JSON.stringify(graph, null, 2)
 );
-console.log(invoices[0]);
-console.log(deliveries[0]);
-console.log("Final Nodes:", graph.nodes.length);
-console.log("Final Edges:", graph.edges.length);
+
+console.log("Graph created successfully!");
