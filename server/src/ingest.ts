@@ -26,3 +26,28 @@ const invoices = readJSONL(
         "part-20251119-133433-228.jsonl",
     ),
 );
+
+const graph = {
+    "nodes": [] as any[],
+    "edges": [] as any[]
+}
+
+invoices.forEach((inv) => {
+    if (!inv.billingDocument) return;
+
+    graph.nodes.push({
+        id: `invoice-${inv.billingDocument}`,
+        type: "invoice",
+        label: `Invoice ${inv.billingDocument}`,
+        metadata:inv
+    });
+});
+
+console.log("Invoices loaded:", invoices.length);
+console.log("Nodes created:", graph.nodes.length);
+console.log(invoices[0]);
+
+fs.writeFileSync(
+    path.join(repoRoot, "data", "graph.json"),
+    JSON.stringify(graph, null, 2)
+)
