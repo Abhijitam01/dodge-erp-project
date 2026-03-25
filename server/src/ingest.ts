@@ -57,7 +57,27 @@ const customers = readJSONL(
   )
 );
 
-invoices.forEach((inv) => {
+const deliveries = readJSONL(
+  path.join(
+    SAP_EXPORT_ROOT,
+    "outbound_delivery_headers",
+    "part-20251119-133431-414.jsonl"
+  )
+);
+
+const sortedInvoices = [...invoices].sort(
+    (a, b) =>
+      new Date(a.creationDate).getTime() -
+      new Date(b.creationDate).getTime()
+  );
+  
+  const sortedDeliveries = [...deliveries].sort(
+    (a, b) =>
+      new Date(a.creationDate).getTime() -
+      new Date(b.creationDate).getTime()
+  );
+
+sortedInvoices.forEach((inv) => {
   if (!inv.billingDocument) return;
 
   safeAddNode({
@@ -92,7 +112,7 @@ customers.forEach((c) => {
 });
 
 
-invoices.forEach((inv) => {
+sortedInvoices.forEach((inv) => {
   if (inv.accountingDocument) {
     graph.edges.push({
       id: `invoice-${inv.billingDocument}-payment-${inv.accountingDocument}`,
@@ -104,7 +124,7 @@ invoices.forEach((inv) => {
 });
 
 
-invoices.forEach((inv) => {
+sortedInvoices.forEach((inv) => {
   if (inv.soldToParty) {
     graph.edges.push({
       id: `invoice-${inv.billingDocument}-customer-${inv.soldToParty}`,
@@ -114,16 +134,29 @@ invoices.forEach((inv) => {
     });
   }
 });
-
+sortedDeliveries.forEach((d) => {
+    if (!d.deliveryDocument) return;
+  
+    safeAddNode({
+      id: `delivery-${d.deliveryDocument}`,
+      type: "delivery",
+      label: `Delivery ${d.deliveryDocument}`,
+      metadata: d,
+    });
+  });
 
 console.log("Invoices loaded:", invoices.length);
 console.log("Payments loaded:", payments.length);
 console.log("Customers loaded:", customers.length);
 console.log("Nodes created:", graph.nodes.length);
 console.log("Edges created:", graph.edges.length);
+console.log("Deliveries loaded:", deliveries.length);
 
 fs.writeFileSync(
   path.join(repoRoot, "data", "graph.json"),
   JSON.stringify(graph, null, 2)
 );
 console.log(invoices[0]);
+console.log(deliveries[0]);
+console.log("Final Nodes:", graph.nodes.length);
+console.log("Final Edges:", graph.edges.length);
