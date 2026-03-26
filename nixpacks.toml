@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgsExtra = ["python3", "gcc", "gnumake"]
+nixPkgsExtra = ["python311", "gcc", "gnumake"]
 
 [phases.install]
-cmds = ["cd server && pnpm install"]
+cmds = ["cd server && PYTHON=$(python3 -c 'import sys; print(sys.executable)') pnpm install"]
 
 [phases.build]
 cmds = []
