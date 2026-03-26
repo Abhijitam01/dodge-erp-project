@@ -12,10 +12,13 @@ COPY data ./data
 # Install pnpm
 RUN npm install -g pnpm
 
-# Install server dependencies, then force-recompile better-sqlite3 for this platform
+# Force better-sqlite3 to compile from source for this platform (linux-x64)
+# pnpm rebuild is unreliable with the .pnpm virtual store layout; this env var
+# makes pnpm compile native modules from source during install instead.
+ENV npm_config_build_from_source=true
+
 WORKDIR /app/server
 RUN pnpm install --frozen-lockfile
-RUN pnpm rebuild better-sqlite3
 
 # Copy server source
 COPY server/src ./src

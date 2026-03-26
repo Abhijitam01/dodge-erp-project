@@ -38,7 +38,13 @@ function DotNode({ data }) {
 
 const nodeTypes = { dot: DotNode };
 
-function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'full' }) {
+function GraphCanvas({
+  onNodeSelect,
+  onDegreeMap,
+  highlightedIds,
+  graphMode = 'full',
+  onHighlightedSubsetEmpty,
+}) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +85,13 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
     if (loading) return;
 
     const isHL = highlightedIds && highlightedIds.size > 0;
+    const matchedInGraph = isHL ? allNodes.filter(n => highlightedIds.has(n.id)).length : 0;
+    // Avoid "everything dimmed" when server sent IDs that do not exist on this graph
+    const applyHighlightStyling = isHL && matchedInGraph > 0;
+
+    if (graphMode === 'highlighted' && isHL && matchedInGraph === 0) {
+      onHighlightedSubsetEmpty?.();
+    }
 
     if (graphMode === 'highlighted' && isHL) {
       const hlNodes = allNodes
@@ -88,7 +101,6 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
           data: { ...n.data, isHighlighted: true, isDimmed: false, nodeId: n.id },
         }));
 
-      // If no nodes matched (ID format mismatch), fall through to full mode with dimming
       if (hlNodes.length > 0) {
         const hlEdges = allEdges
           .filter(e => highlightedIds.has(e.source) && highlightedIds.has(e.target))
@@ -100,13 +112,12 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
         setNodes(hlNodes);
         setEdges(hlEdges);
 
-        // fitView is also triggered via the resize listener when the graph tab becomes visible
         setTimeout(() => fitView({ padding: 0.3, duration: 600 }), 50);
         return;
       }
     }
 
-    // Full mode — all nodes with pre-computed isHighlighted/isDimmed booleans
+    // Full graph (or highlighted mode fell through because no nodes matched)
     const base = hideGranular
       ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
       : allNodes;
@@ -115,8 +126,8 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
       ...n,
       data: {
         ...n.data,
-        isHighlighted: isHL && highlightedIds.has(n.id),
-        isDimmed: isHL && !highlightedIds.has(n.id),
+        isHighlighted: applyHighlightStyling && highlightedIds.has(n.id),
+        isDimmed: applyHighlightStyling && !highlightedIds.has(n.id),
         nodeId: n.id,
       },
     }));
@@ -126,18 +137,21 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
     const updatedEdges = allEdges
       .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
       .map(e => {
-        const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
+        const edgeHighlighted =
+          applyHighlightStyling &&
+          (highlightedIds.has(e.source) || highlightedIds.has(e.target));
         return {
           ...e,
           style: {
             stroke: edgeHighlighted ? '#3b82f6' : '#93c5fd',
             strokeWidth: edgeHighlighted ? 2.5 : 1.5,
-            opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.7,
+            opacity: applyHighlightStyling ? (edgeHighlighted ? 1 : 0.04) : 0.7,
           },
         };
       });
     setEdges(updatedEdges);
-  }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds, graphMode, loading]);
+    // fitView intentionally omitted — identity from useReactFlow may not be stable
+  }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds, graphMode, loading, onHighlightedSubsetEmpty]);
 
   const onNodeClick = useCallback((_, node) => {
     onNodeSelect?.(node);
@@ -206,13 +220,30 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
               </span>
             )}
           </div>
+
+          {highlightedIds &&
+            highlightedIds.size > 0 &&
+            !loading &&
+            allNodes.length > 0 &&
+            !allNodes.some(n => highlightedIds.has(n.id)) && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 max-w-md px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs text-center shadow-sm">
+                No matching nodes in this graph for the current highlights (IDs may be stale or from a
+                different dataset). Showing the full graph.
+              </div>
+            )}
         </>
       )}
     </div>
   );
 }
 
-export default function GraphView({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'full' }) {
+export default function GraphView({
+  onNodeSelect,
+  onDegreeMap,
+  highlightedIds,
+  graphMode = 'full',
+  onHighlightedSubsetEmpty,
+}) {
   return (
     <ReactFlowProvider>
       <GraphCanvas
@@ -220,6 +251,7 @@ export default function GraphView({ onNodeSelect, onDegreeMap, highlightedIds, g
         onDegreeMap={onDegreeMap}
         highlightedIds={highlightedIds}
         graphMode={graphMode}
+        onHighlightedSubsetEmpty={onHighlightedSubsetEmpty}
       />
     </ReactFlowProvider>
   );

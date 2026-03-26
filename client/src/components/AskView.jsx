@@ -170,9 +170,11 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
       setHistory(updated);
       saveHistory(updated);
 
-      // Use server-provided nodeIds for accurate graph highlighting
+      // Use server-provided nodeIds for accurate graph highlighting.
+      // Only update highlights when the new query actually returns nodes —
+      // otherwise the previous highlights stay visible on the graph.
       const ids = new Set(res.nodeIds ?? []);
-      onHighlight?.(ids);
+      if (ids.size > 0) onHighlight?.(ids);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -180,16 +182,17 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
     }
   }
 
-  function handleSaveChart() {
-    if (!result || !chartData) return;
+  function handleSaveResult() {
+    if (!result) return;
     const saved = JSON.parse(localStorage.getItem('dodge_ai_saved_charts') || '[]');
     const entry = {
       id: Date.now().toString(),
       query,
       answer: result.answer ?? '',
-      chartRows: result.results.slice(0, 20),
-      strKey: chartData.strKey,
-      numKey: chartData.numKey,
+      chartRows: result.results ? result.results.slice(0, 20) : [],
+      strKey: chartData?.strKey ?? null,
+      numKey: chartData?.numKey ?? null,
+      nodeIds: result.nodeIds ?? [],
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem('dodge_ai_saved_charts', JSON.stringify([entry, ...saved]));
@@ -347,6 +350,24 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
                   </button>
                 </>
               )}
+              <span className="text-gray-200">|</span>
+              <button
+                onClick={handleSaveResult}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+              >
+                {chartSavedToast ? (
+                  <span className="text-emerald-600 font-semibold">Saved!</span>
+                ) : (
+                  <>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    Save
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -354,6 +375,19 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
           <div className="px-5 py-4">
             <p className="text-base font-semibold text-gray-900 leading-relaxed">{result.answer}</p>
           </div>
+
+          {/* Graph highlight link */}
+          {result.nodeIds?.length > 0 && onExploreGraph && (
+            <div className="px-5 pb-3 -mt-1">
+              <button
+                onClick={onExploreGraph}
+                className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                {result.nodeIds.length} node{result.nodeIds.length !== 1 ? 's' : ''} highlighted — View on graph →
+              </button>
+            </div>
+          )}
 
           {/* SQL block */}
           {showSql && result.sql && (
@@ -380,23 +414,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Chart</p>
-                  <button
-                    onClick={handleSaveChart}
-                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-gray-700 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
-                  >
-                    {chartSavedToast ? (
-                      <span className="text-emerald-600 font-semibold">Saved!</span>
-                    ) : (
-                      <>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                          <polyline points="17 21 17 13 7 13 7 21" />
-                          <polyline points="7 3 7 8 15 8" />
-                        </svg>
-                        Save to Dashboard
-                      </>
-                    )}
-                  </button>
                 </div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={result.results.slice(0, 20)} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>

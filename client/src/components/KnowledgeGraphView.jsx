@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import GraphView from './GraphView';
 import { fetchNode, sendChat } from '../lib/api';
 import { NODE_LABELS } from '../lib/graphUtils';
@@ -85,6 +85,10 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
     onDegreeMap?.(dm);
   }
 
+  const handleHighlightedSubsetEmpty = useCallback(() => {
+    setGraphMode('full');
+  }, []);
+
   async function handleNodeSelect(node) {
     setSelectedNode(node);
     setConnections(degreeMap[node.id] ?? 0);
@@ -154,8 +158,19 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
           Full Graph
         </button>
         <button
+          type="button"
           onClick={() => hlSize > 0 && setGraphMode('highlighted')}
           disabled={hlSize === 0}
+          title={
+            hlSize === 0
+              ? 'Ask a question on Ask or here first — highlights appear when the answer includes graph node IDs.'
+              : `Show only ${hlSize} highlighted node${hlSize === 1 ? '' : 's'}`
+          }
+          aria-label={
+            hlSize === 0
+              ? 'Highlighted view disabled until a query returns nodes to highlight'
+              : `Highlighted subgraph, ${hlSize} nodes`
+          }
           className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
             graphMode === 'highlighted'
               ? 'bg-blue-600 text-white'
@@ -196,6 +211,7 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
             onDegreeMap={handleDegreeMap}
             highlightedIds={highlightedIds}
             graphMode={graphMode}
+            onHighlightedSubsetEmpty={handleHighlightedSubsetEmpty}
           />
 
           {/* Floating inline ask bar */}

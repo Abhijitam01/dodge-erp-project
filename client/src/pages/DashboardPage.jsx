@@ -15,8 +15,6 @@ export default function DashboardPage() {
 
   function handleHighlight(ids) {
     setHighlightedIds(ids);
-    // Auto-switch to graph if IDs are highlighted so user sees the effect
-    // (do NOT auto-switch — let user navigate manually; just store state)
   }
 
   function handleDegreeMap(dm) {

@@ -157,22 +157,24 @@ function SavedChartsSection() {
             {c.answer && (
               <p className="text-xs text-gray-500 mb-3 leading-relaxed">{c.answer}</p>
             )}
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={c.chartRows} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis
-                  dataKey={c.strKey}
-                  tick={{ fontSize: 9, fill: '#9ca3af' }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 11 }}
-                  cursor={{ fill: '#f3f4f6' }}
-                />
-                <Bar dataKey={c.numKey} fill="#3b82f6" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {c.chartRows && c.strKey && c.numKey ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={c.chartRows} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis
+                    dataKey={c.strKey}
+                    tick={{ fontSize: 9, fill: '#9ca3af' }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 11 }}
+                    cursor={{ fill: '#f3f4f6' }}
+                  />
+                  <Bar dataKey={c.numKey} fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : null}
           </div>
         ))}
       </div>
@@ -196,14 +198,6 @@ export default function DashboardsView({ onRestoreGraph }) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-red-500">{error}</p>
       </div>
     );
   }
@@ -236,114 +230,126 @@ export default function DashboardsView({ onRestoreGraph }) {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard
-          label="Total Revenue"
-          value={formatRevenue(revenue)}
-          delta="+18.2%"
-          deltaPositive
-          vsLabel="vs last period"
-        />
-        <MetricCard
-          label="Total Customers"
-          value={(counts.customers ?? 0).toLocaleString()}
-          delta="+24.5%"
-          deltaPositive
-          vsLabel="vs last period"
-        />
-        <MetricCard
-          label="Total Invoices"
-          value={(counts.invoices ?? 0).toLocaleString()}
-          delta="+8.3%"
-          deltaPositive
-          vsLabel="vs last period"
-        />
-        <MetricCard
-          label="Payments Collected"
-          value={(counts.payments ?? 0).toLocaleString()}
-          delta="+12.7%"
-          deltaPositive
-          vsLabel="vs last period"
-        />
-      </div>
-
-      {/* Trend + Entity breakdown */}
-      <div className="flex gap-4 mb-6">
-        {/* Revenue Trend */}
-        <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-sm font-semibold text-gray-900 mb-0.5">Revenue Trend</p>
-          <p className="text-xs text-gray-400 mb-4">This year vs last year</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={trendData} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false}
-                tickFormatter={v => v >= 1_000_000 ? `$${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `$${(v/1_000).toFixed(0)}K` : `$${v}`}
-              />
-              <Tooltip
-                contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
-                formatter={(v, name) => [formatRevenue(v), name === 'thisYear' ? 'This Year' : 'Last Year']}
-              />
-              <Legend
-                iconType="plainline"
-                formatter={name => name === 'thisYear' ? 'This Year' : 'Last Year'}
-                wrapperStyle={{ fontSize: 11 }}
-              />
-              <Line type="monotone" dataKey="thisYear" stroke="#3b82f6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="lastYear" stroke="#d1d5db" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* Stats error banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl">
+          <p className="text-sm text-red-500">{error}</p>
         </div>
+      )}
 
-        {/* By Entity Type */}
-        <div className="w-72 shrink-0 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-sm font-semibold text-gray-900 mb-4">By Entity Type</p>
-          <EntityBar label="Invoices" value={counts.invoices ?? 0} total={totalEntityCount} color="#f97316" />
-          <EntityBar label="Payments" value={counts.payments ?? 0} total={totalEntityCount} color="#16a34a" />
-          <EntityBar label="Deliveries" value={counts.deliveries ?? 0} total={totalEntityCount} color="#7c3aed" />
-          <EntityBar label="Customers" value={counts.customers ?? 0} total={totalEntityCount} color="#2563eb" />
-        </div>
-      </div>
-
-      {/* Top Accounts Table */}
-      {topCustomers.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
-          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-900">Top Accounts</p>
-            <button className="text-xs text-blue-600 hover:text-blue-500 font-medium">View all</button>
+      {/* Stats widgets — hidden when stats load fails, saved items still render below */}
+      {!error && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <MetricCard
+              label="Total Revenue"
+              value={formatRevenue(revenue)}
+              delta="+18.2%"
+              deltaPositive
+              vsLabel="vs last period"
+            />
+            <MetricCard
+              label="Total Customers"
+              value={(counts.customers ?? 0).toLocaleString()}
+              delta="+24.5%"
+              deltaPositive
+              vsLabel="vs last period"
+            />
+            <MetricCard
+              label="Total Invoices"
+              value={(counts.invoices ?? 0).toLocaleString()}
+              delta="+8.3%"
+              deltaPositive
+              vsLabel="vs last period"
+            />
+            <MetricCard
+              label="Payments Collected"
+              value={(counts.payments ?? 0).toLocaleString()}
+              delta="+12.7%"
+              deltaPositive
+              vsLabel="vs last period"
+            />
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Account</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Industry</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoices</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Growth</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topCustomers.map((c, i) => {
-                const status = i < 7 ? 'Active' : 'At Risk';
-                const growth = i % 2 === 0 ? `+${(12 + i * 1.5).toFixed(1)}%` : `-${(2 + i * 0.8).toFixed(1)}%`;
-                const growthPositive = i % 2 === 0;
-                return (
-                  <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{INDUSTRIES[i % INDUSTRIES.length]}</td>
-                    <td className="px-5 py-3 text-sm text-gray-700 text-right">{c.invoice_count.toLocaleString()}</td>
-                    <td className={`px-5 py-3 text-sm font-medium text-right ${growthPositive ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {growth}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <StatusBadge status={status} />
-                    </td>
+
+          {/* Trend + Entity breakdown */}
+          <div className="flex gap-4 mb-6">
+            {/* Revenue Trend */}
+            <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-semibold text-gray-900 mb-0.5">Revenue Trend</p>
+              <p className="text-xs text-gray-400 mb-4">This year vs last year</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={trendData} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false}
+                    tickFormatter={v => v >= 1_000_000 ? `$${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `$${(v/1_000).toFixed(0)}K` : `$${v}`}
+                  />
+                  <Tooltip
+                    contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
+                    formatter={(v, name) => [formatRevenue(v), name === 'thisYear' ? 'This Year' : 'Last Year']}
+                  />
+                  <Legend
+                    iconType="plainline"
+                    formatter={name => name === 'thisYear' ? 'This Year' : 'Last Year'}
+                    wrapperStyle={{ fontSize: 11 }}
+                  />
+                  <Line type="monotone" dataKey="thisYear" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="lastYear" stroke="#d1d5db" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* By Entity Type */}
+            <div className="w-72 shrink-0 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-semibold text-gray-900 mb-4">By Entity Type</p>
+              <EntityBar label="Invoices" value={counts.invoices ?? 0} total={totalEntityCount} color="#f97316" />
+              <EntityBar label="Payments" value={counts.payments ?? 0} total={totalEntityCount} color="#16a34a" />
+              <EntityBar label="Deliveries" value={counts.deliveries ?? 0} total={totalEntityCount} color="#7c3aed" />
+              <EntityBar label="Customers" value={counts.customers ?? 0} total={totalEntityCount} color="#2563eb" />
+            </div>
+          </div>
+
+          {/* Top Accounts Table */}
+          {topCustomers.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Top Accounts</p>
+                <button className="text-xs text-blue-600 hover:text-blue-500 font-medium">View all</button>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Account</th>
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Industry</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoices</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Growth</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {topCustomers.map((c, i) => {
+                    const status = i < 7 ? 'Active' : 'At Risk';
+                    const growth = i % 2 === 0 ? `+${(12 + i * 1.5).toFixed(1)}%` : `-${(2 + i * 0.8).toFixed(1)}%`;
+                    const growthPositive = i % 2 === 0;
+                    return (
+                      <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                        <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                        <td className="px-5 py-3 text-sm text-gray-500">{INDUSTRIES[i % INDUSTRIES.length]}</td>
+                        <td className="px-5 py-3 text-sm text-gray-700 text-right">{c.invoice_count.toLocaleString()}</td>
+                        <td className={`px-5 py-3 text-sm font-medium text-right ${growthPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {growth}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <StatusBadge status={status} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Saved Charts */}

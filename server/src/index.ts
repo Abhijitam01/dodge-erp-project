@@ -17,7 +17,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Load variables from ../../.env (repo root) into process.env — e.g. GROQ_API_KEY, PORT.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import fs from 'fs';
 
@@ -168,6 +169,12 @@ function getGraphNodeIds(): Set<string> {
   return _graphNodeIds;
 }
 
+function strVal(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
 /**
  * Inspect SQL result rows and return graph node IDs in "<type>-<id>" format.
  * Validates every candidate against the actual graph so only real nodes are returned.
@@ -179,19 +186,32 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
 
   for (const row of rows) {
     const candidates: string[] = [];
+    const push = (type: string, val: unknown) => {
+      const s = strVal(val);
+      if (s) candidates.push(`${type}-${s}`);
+    };
 
-    // Well-known entity-specific columns
-    if (row.sold_to_party != null) candidates.push(`customer-${row.sold_to_party}`);
-    if (row.accounting_document != null) candidates.push(`payment-${row.accounting_document}`);
-    if (row.delivery_id != null) candidates.push(`delivery-${row.delivery_id}`);
-    if (row.delivery_document != null) candidates.push(`delivery-${row.delivery_document}`);
-    if (row.billing_document != null) candidates.push(`invoice-${row.billing_document}`);
-    if (row.sales_order != null) candidates.push(`sales_order-${row.sales_order}`);
+    // Well-known entity-specific columns (SQLite / LLM may use different aliases)
+    push('customer', row.sold_to_party);
+    push('customer', row.customer);
+    push('payment', row.accounting_document);
+    push('payment', row.payment_id);
+    push('payment', row.payment);
+    push('delivery', row.delivery_id);
+    push('delivery', row.delivery_document);
+    push('delivery', row.reference_delivery);
+    push('delivery', row.delivery);
+    push('invoice', row.billing_document);
+    push('invoice', row.invoice);
+    push('sales_order', row.sales_order);
+    push('product', row.material);
+    push('product', row.product);
 
     // Generic `id` column — try every known type prefix and validate against graph
-    if (row.id != null) {
+    const idStr = strVal(row.id);
+    if (idStr) {
       for (const t of ['customer', 'invoice', 'payment', 'delivery', 'sales_order', 'product']) {
-        candidates.push(`${t}-${row.id}`);
+        candidates.push(`${t}-${idStr}`);
       }
     }
 
@@ -290,8 +310,11 @@ app.get('/api/stats', (_req: Request, res: Response) => {
     }
     const revenueRow = queryOne<{ total: number | null }>(`SELECT SUM(CAST(amount AS REAL)) as total FROM payments`);
     const totalRevenue = revenueRow?.total ?? 0;
+    // customers table has no name column; name lives in raw_json (e.g. customerName).
     const topCustomers = query<{ id: string; name: string; invoice_count: number }>(
-      `SELECT c.id, c.name, COUNT(i.id) as invoice_count
+      `SELECT c.id,
+              COALESCE(json_extract(c.raw_json, '$.customerName'), c.id) AS name,
+              COUNT(i.id) AS invoice_count
        FROM customers c
        LEFT JOIN invoices i ON i.sold_to_party = c.id
        GROUP BY c.id
