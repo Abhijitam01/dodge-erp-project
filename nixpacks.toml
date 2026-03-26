@@ -1,3 +1,6 @@
+[phases.setup]
+nixPkgsExtra = ["python3", "gcc", "gnumake"]
+
 [phases.install]
 cmds = ["cd server && pnpm install"]
 
