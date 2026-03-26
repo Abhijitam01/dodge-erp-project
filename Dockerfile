@@ -19,6 +19,9 @@ ENV npm_config_build_from_source=true
 
 WORKDIR /app/server
 RUN pnpm install --frozen-lockfile
+# Explicitly recompile better-sqlite3 for this Linux platform (the env var alone
+# is sometimes ignored when pnpm uses a prebuilt binary from the lockfile cache).
+RUN pnpm rebuild better-sqlite3
 
 # Copy server source
 COPY server/src ./src
