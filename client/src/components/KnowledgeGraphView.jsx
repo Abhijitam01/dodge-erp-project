@@ -111,12 +111,10 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
       const res = await sendChat(trimmed);
       setAskAnswer(res.answer ?? '');
 
-      if (res.results && res.results.length > 0) {
-        const ids = new Set(
-          res.results.map(r => r.id).filter(Boolean).map(String)
-        );
+      const ids = new Set(res.nodeIds ?? []);
+      if (ids.size > 0) {
         onHighlight?.(ids);
-        if (ids.size > 0) setGraphMode('highlighted');
+        setGraphMode('highlighted');
       }
     } catch {
       setAskAnswer('Something went wrong. Please try again.');

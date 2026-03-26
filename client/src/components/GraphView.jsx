@@ -14,10 +14,7 @@ import { fetchGraph } from '../lib/api';
 import { layoutNodes, transformEdges, buildDegreeMap } from '../lib/graphUtils';
 
 function DotNode({ data }) {
-  const { color, highlightedIds, nodeId } = data;
-  const isHighlightMode = highlightedIds && highlightedIds.size > 0;
-  const isHighlighted = isHighlightMode && highlightedIds.has(nodeId);
-  const isDimmed = isHighlightMode && !isHighlighted;
+  const { color, isHighlighted, isDimmed } = data;
 
   const size = isHighlighted ? 14 : 10;
   const style = {
@@ -53,6 +50,16 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
 
   const { fitView } = useReactFlow();
 
+  // Re-fit when the container becomes visible (e.g. switching to graph tab
+  // dispatches a resize event from handleNavigate in DashboardPage)
+  useEffect(() => {
+    function onResize() {
+      if (!loading) fitView({ padding: 0.1, duration: 300 });
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [loading, fitView]);
+
   useEffect(() => {
     fetchGraph().then(data => {
       const laid = layoutNodes(data.nodes ?? []);
@@ -74,59 +81,62 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'f
     const isHL = highlightedIds && highlightedIds.size > 0;
 
     if (graphMode === 'highlighted' && isHL) {
-      // Show only highlighted nodes and edges between them
       const hlNodes = allNodes
         .filter(n => highlightedIds.has(n.id))
         .map(n => ({
           ...n,
-          data: { ...n.data, highlightedIds, nodeId: n.id },
+          data: { ...n.data, isHighlighted: true, isDimmed: false, nodeId: n.id },
         }));
 
-      const hlEdges = allEdges
-        .filter(e => highlightedIds.has(e.source) && highlightedIds.has(e.target))
-        .map(e => ({
-          ...e,
-          style: { stroke: '#3b82f6', strokeWidth: 2.5, opacity: 1 },
-        }));
-
-      setNodes(hlNodes);
-      setEdges(hlEdges);
-
-      setTimeout(() => {
-        fitView({
-          nodes: hlNodes.map(n => ({ id: n.id })),
-          padding: 0.3,
-          duration: 600,
-        });
-      }, 50);
-    } else {
-      // Full mode — all nodes with dim/bright based on highlight state
-      const base = hideGranular
-        ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
-        : allNodes;
-
-      const updated = base.map(n => ({
-        ...n,
-        data: { ...n.data, highlightedIds: isHL ? highlightedIds : new Set(), nodeId: n.id },
-      }));
-      setNodes(updated);
-
-      const visibleIds = new Set(updated.map(n => n.id));
-      const updatedEdges = allEdges
-        .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
-        .map(e => {
-          const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
-          return {
+      // If no nodes matched (ID format mismatch), fall through to full mode with dimming
+      if (hlNodes.length > 0) {
+        const hlEdges = allEdges
+          .filter(e => highlightedIds.has(e.source) && highlightedIds.has(e.target))
+          .map(e => ({
             ...e,
-            style: {
-              stroke: edgeHighlighted ? '#3b82f6' : '#93c5fd',
-              strokeWidth: edgeHighlighted ? 2.5 : 1.5,
-              opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.7,
-            },
-          };
-        });
-      setEdges(updatedEdges);
+            style: { stroke: '#3b82f6', strokeWidth: 2.5, opacity: 1 },
+          }));
+
+        setNodes(hlNodes);
+        setEdges(hlEdges);
+
+        // fitView is also triggered via the resize listener when the graph tab becomes visible
+        setTimeout(() => fitView({ padding: 0.3, duration: 600 }), 50);
+        return;
+      }
     }
+
+    // Full mode — all nodes with pre-computed isHighlighted/isDimmed booleans
+    const base = hideGranular
+      ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
+      : allNodes;
+
+    const updated = base.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        isHighlighted: isHL && highlightedIds.has(n.id),
+        isDimmed: isHL && !highlightedIds.has(n.id),
+        nodeId: n.id,
+      },
+    }));
+    setNodes(updated);
+
+    const visibleIds = new Set(updated.map(n => n.id));
+    const updatedEdges = allEdges
+      .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
+      .map(e => {
+        const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
+        return {
+          ...e,
+          style: {
+            stroke: edgeHighlighted ? '#3b82f6' : '#93c5fd',
+            strokeWidth: edgeHighlighted ? 2.5 : 1.5,
+            opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.7,
+          },
+        };
+      });
+    setEdges(updatedEdges);
   }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds, graphMode, loading]);
 
   const onNodeClick = useCallback((_, node) => {

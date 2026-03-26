@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd client && pnpm install && pnpm build",
+  "outputDirectory": "client/dist",
+  "installCommand": "npm install -g pnpm",
+  "framework": null
+}

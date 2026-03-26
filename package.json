@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently --names server,client --prefix-colors blue,green \"pnpm -C server dev\" \"pnpm -C client dev\"",
+    "build": "pnpm -C server build && pnpm -C client build",
+    "start": "concurrently --names server,client --prefix-colors blue,green \"pnpm -C server start\" \"pnpm -C client preview\"",
+    "ingest": "pnpm -C server ingest"
   },
   "keywords": [],
   "author": "",

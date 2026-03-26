@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { fetchStats } from '../lib/api';
 
@@ -113,6 +113,69 @@ function SavedGraphsSection({ onRestoreGraph }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function SavedChartsSection() {
+  const [savedCharts, setSavedCharts] = useState([]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('dodge_ai_saved_charts');
+    setSavedCharts(raw ? JSON.parse(raw) : []);
+  }, []);
+
+  function handleDelete(id) {
+    const updated = savedCharts.filter(c => c.id !== id);
+    setSavedCharts(updated);
+    localStorage.setItem('dodge_ai_saved_charts', JSON.stringify(updated));
+  }
+
+  if (savedCharts.length === 0) return null;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
+      <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-900">Saved Charts</p>
+        <p className="text-xs text-gray-400">{savedCharts.length} saved</p>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {savedCharts.map((c) => (
+          <div key={c.id} className="px-5 py-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{c.query}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatDate(c.savedAt)}</p>
+              </div>
+              <button
+                onClick={() => handleDelete(c.id)}
+                className="text-xs text-gray-400 hover:text-red-500 ml-3 shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+            {c.answer && (
+              <p className="text-xs text-gray-500 mb-3 leading-relaxed">{c.answer}</p>
+            )}
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={c.chartRows} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <XAxis
+                  dataKey={c.strKey}
+                  tick={{ fontSize: 9, fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 11 }}
+                  cursor={{ fill: '#f3f4f6' }}
+                />
+                <Bar dataKey={c.numKey} fill="#3b82f6" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -282,6 +345,9 @@ export default function DashboardsView({ onRestoreGraph }) {
           </table>
         </div>
       )}
+
+      {/* Saved Charts */}
+      <SavedChartsSection />
 
       {/* Saved Graphs */}
       <SavedGraphsSection onRestoreGraph={onRestoreGraph} />
