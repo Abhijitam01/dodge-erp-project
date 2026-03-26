@@ -2,5 +2,6 @@
   "buildCommand": "pnpm install && pnpm build",
   "outputDirectory": "dist",
   "installCommand": "npm install -g pnpm",
-  "framework": null
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
