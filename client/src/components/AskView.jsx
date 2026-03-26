@@ -68,23 +68,19 @@ function DataLineagePanel({ results, onExploreGraph }) {
         <span className="text-sm font-semibold text-gray-900">Data Lineage</span>
       </div>
 
-      {/* Mini bubble diagram */}
       <div className="relative h-24 mb-3">
-        {/* Result bubble on right */}
         <div
           className="absolute right-2 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center"
         >
           <span className="text-[9px] font-bold text-white text-center leading-tight">Result</span>
         </div>
 
-        {/* Source bubbles on left */}
         {sources.slice(0, 4).map((src, i) => {
           const total = Math.min(sources.length, 4);
           const top = total === 1 ? 50 : 10 + (80 / (total - 1)) * i;
           const color = SOURCE_COLORS[src] ?? '#6b7280';
           return (
             <div key={src} style={{ position: 'absolute', left: 4, top: `${top}%`, transform: 'translateY(-50%)' }}>
-              {/* Connection line */}
               <svg
                 style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', overflow: 'visible' }}
                 width="80" height="2"
@@ -129,7 +125,7 @@ function loadHistory() {
 function saveHistory(history) {
   try {
     sessionStorage.setItem('dodge_ai_chat_history', JSON.stringify(history.slice(0, 50)));
-  } catch { /* ignore quota errors */ }
+  } catch {}
 }
 
 export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
@@ -142,7 +138,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
   const [showHistory, setShowHistory] = useState(false);
   const [chartSavedToast, setChartSavedToast] = useState(false);
 
-  // Sync when parent pushes a new prefill query (e.g. "Query this node")
   const prevInitialQuery = useRef(initialQuery);
   useEffect(() => {
     if (initialQuery && initialQuery !== prevInitialQuery.current) {
@@ -164,15 +159,11 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
       const res = await sendChat(trimmed);
       setResult(res);
 
-      // Persist to session history
       const entry = { id: Date.now().toString(), query: trimmed, result: res, timestamp: new Date().toISOString() };
       const updated = [entry, ...history].slice(0, 50);
       setHistory(updated);
       saveHistory(updated);
 
-      // Use server-provided nodeIds for accurate graph highlighting.
-      // Only update highlights when the new query actually returns nodes —
-      // otherwise the previous highlights stay visible on the graph.
       const ids = new Set(res.nodeIds ?? []);
       if (ids.size > 0) onHighlight?.(ids);
     } catch {
@@ -206,8 +197,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
     setError(null);
     setShowSql(false);
     setShowHistory(false);
-    // Intentionally do NOT clear highlights — the graph keeps the last
-    // highlighted set until a new query returns its own nodes.
   }
 
   const chartData = result?.results ? detectChartData(result.results) : null;
@@ -216,7 +205,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
 
   return (
     <div className="flex-1 overflow-y-auto px-8 py-8 max-w-4xl mx-auto w-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Ask your data</h1>
         <div className="flex items-center gap-2">
@@ -272,7 +260,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
         </div>
       </div>
 
-      {/* Search bar */}
       <div className="flex gap-2 mb-3">
         <div className="flex-1 flex items-center gap-2 border border-gray-300 rounded-xl px-4 py-3 focus-within:border-blue-500 transition-colors bg-white shadow-sm">
           <svg className="text-gray-400 shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -296,7 +283,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
         </div>
       </div>
 
-      {/* TRY suggestions */}
       {!result && !loading && (
         <div className="flex flex-wrap items-center gap-2 mb-8">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Try:</span>
@@ -312,7 +298,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
         <div className="flex items-center gap-3 py-8 text-gray-400">
           <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
@@ -320,15 +305,12 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{error}</div>
       )}
 
-      {/* Answer card */}
       {result && !loading && (
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          {/* Card header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <span className="text-blue-600 font-bold text-sm">✦</span>
@@ -372,12 +354,10 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
             </div>
           </div>
 
-          {/* Answer text */}
           <div className="px-5 py-4">
             <p className="text-base font-semibold text-gray-900 leading-relaxed">{result.answer}</p>
           </div>
 
-          {/* Graph highlight link */}
           {result.nodeIds?.length > 0 && onExploreGraph && (
             <div className="px-5 pb-3 -mt-1">
               <button
@@ -390,14 +370,12 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
             </div>
           )}
 
-          {/* SQL block */}
           {showSql && result.sql && (
             <div className="mx-5 mb-4 bg-gray-50 rounded-lg overflow-x-auto">
               <pre className="px-4 py-3 text-xs text-gray-700 font-mono whitespace-pre-wrap">{result.sql}</pre>
             </div>
           )}
 
-          {/* Mini metric cards */}
           {metricCards.length > 0 && (
             <div className="px-5 pb-4 flex gap-3 flex-wrap">
               {metricCards.map(({ key, value }) => (
@@ -409,7 +387,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
             </div>
           )}
 
-          {/* Chart + Data Lineage */}
           {(chartData && result.results.length >= 2) && (
             <div className="px-5 pb-5 flex gap-4">
               <div className="flex-1">
@@ -441,7 +418,6 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
             </div>
           )}
 
-          {/* Footer */}
           {result.resultCount != null && (
             <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">

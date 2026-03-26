@@ -33,7 +33,6 @@ const NAV_ITEMS = [
 export default function Sidebar({ activeView, onNavigate, nodeCount }) {
   return (
     <aside className="w-[220px] shrink-0 flex flex-col bg-white border-r border-gray-200 h-full">
-      {/* Logo */}
       <div className="px-4 pt-5 pb-4 flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
@@ -46,7 +45,6 @@ export default function Sidebar({ activeView, onNavigate, nodeCount }) {
         </div>
       </div>
 
-      {/* Main nav */}
       <nav className="px-2 flex-1">
         <p className="px-2 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Main</p>
         <ul className="space-y-0.5">
@@ -71,7 +69,6 @@ export default function Sidebar({ activeView, onNavigate, nodeCount }) {
         </ul>
       </nav>
 
-      {/* Connected sources */}
       <div className="px-4 py-4 border-t border-gray-100">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Connected Sources</p>
         <div className="flex items-center gap-2">

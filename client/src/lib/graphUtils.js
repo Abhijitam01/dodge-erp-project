@@ -16,7 +16,6 @@ export const NODE_LABELS = {
   product:     'Product',
 };
 
-// Cluster centers across a 3200×2000 canvas
 const CLUSTERS = {
   customer:    { cx: 400,  cy: 1000 },
   sales_order: { cx: 1000, cy: 500  },
@@ -29,7 +28,6 @@ const CLUSTERS = {
 const GOLDEN_ANGLE = 137.508 * (Math.PI / 180);
 
 export function layoutNodes(apiNodes) {
-  // Track per-type index for golden-angle spiral placement
   const typeCount = {};
 
   return apiNodes.map((node) => {
@@ -69,9 +67,6 @@ export function transformEdges(apiEdges) {
   }));
 }
 
-/**
- * Build a degree map: nodeId → number of connected edges.
- */
 export function buildDegreeMap(apiEdges) {
   const map = {};
   for (const edge of apiEdges) {

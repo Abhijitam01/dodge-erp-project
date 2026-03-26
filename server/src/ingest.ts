@@ -1,10 +1,3 @@
-/**
- * One-off / batch data pipeline (run via package script, not on every HTTP request).
- *
- * Reads SAP O2C JSONL under data/sap-o2c-data/, writes normalized rows into
- * data/o2c.sqlite and a derived graph to data/graph.json for the UI + API.
- */
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -40,9 +33,7 @@ function readJSONLDir(dirPath: string): Record<string, unknown>[] {
       if (!trimmed) continue;
       try {
         records.push(JSON.parse(trimmed));
-      } catch {
-        // skip malformed lines
-      }
+      } catch {}
     }
   }
   return records;
@@ -416,7 +407,6 @@ function buildGraph(
     }
   }
 
-  // Add nodes
   for (const c of customers) {
     if (!c.customer) continue;
     addNode({ id: `customer-${c.customer}`, type: 'customer' as NodeType, label: `Customer ${c.customer}`, metadata: c as unknown as Record<string, unknown> });
@@ -447,28 +437,24 @@ function buildGraph(
     addNode({ id: `payment-${pay.accountingDocument}`, type: 'payment' as NodeType, label: `Payment ${pay.accountingDocument}`, metadata: pay as unknown as Record<string, unknown> });
   }
 
-  // Sales order → customer (BELONGS_TO)
   for (const so of salesOrders) {
     if (so.salesOrder && so.soldToParty) {
       addEdge({ id: `so-${so.salesOrder}-cust-${so.soldToParty}`, source: `sales_order-${so.salesOrder}`, target: `customer-${so.soldToParty}`, type: 'BELONGS_TO' });
     }
   }
 
-  // Invoice → customer (BELONGS_TO)
   for (const inv of invoices) {
     if (inv.billingDocument && inv.soldToParty) {
       addEdge({ id: `inv-${inv.billingDocument}-cust-${inv.soldToParty}`, source: `invoice-${inv.billingDocument}`, target: `customer-${inv.soldToParty}`, type: 'BELONGS_TO' });
     }
   }
 
-  // Invoice → payment (PAID_BY) — via accounting_document FK
   for (const inv of invoices) {
     if (inv.billingDocument && inv.accountingDocument) {
       addEdge({ id: `inv-${inv.billingDocument}-pay-${inv.accountingDocument}`, source: `invoice-${inv.billingDocument}`, target: `payment-${inv.accountingDocument}`, type: 'PAID_BY' });
     }
   }
 
-  // Invoice → delivery (BILLED_BY) and Invoice → product (HAS_PRODUCT) — via billing_document_items real FK
   for (const bdi of billingDocItems) {
     if (bdi.billingDocument && bdi.referenceSdDocument) {
       const eid = `inv-${bdi.billingDocument}-del-${bdi.referenceSdDocument}`;

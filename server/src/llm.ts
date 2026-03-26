@@ -128,7 +128,6 @@ KEY RELATIONSHIPS:
 BUSINESS FLOW: Customer → Sales Order → Delivery → Invoice (Billing Doc) → Payment (Journal Entry)
 `;
 
-// If none of these appear, we assume the user isn't asking about O2C data.
 const DOMAIN_KEYWORDS = [
   'invoice', 'billing', 'payment', 'delivery', 'customer', 'order',
   'journal', 'accounting', 'document', 'fiscal', 'amount', 'currency',

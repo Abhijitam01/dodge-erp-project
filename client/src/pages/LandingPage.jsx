@@ -11,7 +11,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Nav */}
       <nav className="px-8 py-4 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -29,7 +28,6 @@ export default function LandingPage() {
         </button>
       </nav>
 
-      {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center max-w-3xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
@@ -53,7 +51,6 @@ export default function LandingPage() {
           Open Dashboard →
         </button>
 
-        {/* Preview card */}
         <div className="mt-14 w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden text-left">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
@@ -83,7 +80,6 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* Feature pills */}
       <footer className="pb-12 pt-6">
         <div className="flex justify-center gap-4 flex-wrap px-8">
           {FEATURES.map(f => (

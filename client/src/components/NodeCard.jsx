@@ -14,7 +14,6 @@ export default function NodeCard({ node, onClose, connections = 0 }) {
 
   return (
     <div className="absolute top-16 left-4 z-10 w-72 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
-      {/* Header */}
       <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-gray-100">
         <div>
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{typeLabel}</p>
@@ -30,7 +29,6 @@ export default function NodeCard({ node, onClose, connections = 0 }) {
         </button>
       </div>
 
-      {/* Metadata */}
       <div className="px-4 py-3 space-y-2 max-h-72 overflow-y-auto">
         {entries.length === 0 && (
           <p className="text-xs text-gray-400 italic">No metadata available</p>
@@ -48,7 +46,6 @@ export default function NodeCard({ node, onClose, connections = 0 }) {
         )}
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
         <p className="text-xs text-gray-500">
           Connections: <span className="font-medium text-gray-700">{connections}</span>

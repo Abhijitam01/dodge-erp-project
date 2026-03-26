@@ -56,8 +56,6 @@ function GraphCanvas({
 
   const { fitView } = useReactFlow();
 
-  // Re-fit when the container becomes visible (e.g. switching to graph tab
-  // dispatches a resize event from handleNavigate in DashboardPage)
   useEffect(() => {
     function onResize() {
       if (!loading) fitView({ padding: 0.1, duration: 300 });
@@ -86,7 +84,6 @@ function GraphCanvas({
 
     const isHL = highlightedIds && highlightedIds.size > 0;
     const matchedInGraph = isHL ? allNodes.filter(n => highlightedIds.has(n.id)).length : 0;
-    // Avoid "everything dimmed" when server sent IDs that do not exist on this graph
     const applyHighlightStyling = isHL && matchedInGraph > 0;
 
     if (graphMode === 'highlighted' && isHL && matchedInGraph === 0) {
@@ -117,7 +114,6 @@ function GraphCanvas({
       }
     }
 
-    // Full graph (or highlighted mode fell through because no nodes matched)
     const base = hideGranular
       ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
       : allNodes;
@@ -153,7 +149,6 @@ function GraphCanvas({
         };
       });
     setEdges(updatedEdges);
-    // fitView intentionally omitted — identity from useReactFlow may not be stable
   }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds, graphMode, loading, onHighlightedSubsetEmpty]);
 
   const onNodeClick = useCallback((_, node) => {
@@ -198,7 +193,6 @@ function GraphCanvas({
             <Background variant="dots" color="#d1d5db" gap={40} size={1} />
           </ReactFlow>
 
-          {/* Toolbar */}
           <div className="absolute top-4 left-4 flex gap-2 z-10">
             <button
               onClick={() => setMinimized(true)}

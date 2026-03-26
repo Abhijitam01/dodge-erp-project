@@ -197,7 +197,6 @@ export default function DashboardsView({ onRestoreGraph }) {
 
   return (
     <div className="flex-1 overflow-y-auto px-8 py-8 max-w-6xl mx-auto w-full">
-      {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Revenue Overview</h1>
@@ -213,17 +212,14 @@ export default function DashboardsView({ onRestoreGraph }) {
         </div>
       </div>
 
-      {/* Stats error banner */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl">
           <p className="text-sm text-red-500">{error}</p>
         </div>
       )}
 
-      {/* Stats widgets — hidden when stats load fails, saved items still render below */}
       {!error && (
         <>
-          {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <MetricCard label="Total Revenue" value={formatRevenue(revenue)} sub="from payments" />
             <MetricCard label="Total Customers" value={(counts.customers ?? 0).toLocaleString()} sub="unique accounts" />
@@ -231,9 +227,7 @@ export default function DashboardsView({ onRestoreGraph }) {
             <MetricCard label="Payments Collected" value={(counts.payments ?? 0).toLocaleString()} sub="posted payments" />
           </div>
 
-          {/* Trend + Entity breakdown */}
           <div className="flex gap-4 mb-6">
-            {/* Revenue Trend */}
             <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <p className="text-sm font-semibold text-gray-900 mb-0.5">Revenue Trend</p>
               <p className="text-xs text-gray-400 mb-4">Monthly payment receipts</p>
@@ -252,7 +246,6 @@ export default function DashboardsView({ onRestoreGraph }) {
               </ResponsiveContainer>
             </div>
 
-            {/* By Entity Type */}
             <div className="w-72 shrink-0 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <p className="text-sm font-semibold text-gray-900 mb-4">By Entity Type</p>
               <EntityBar label="Invoices" value={counts.invoices ?? 0} total={totalEntityCount} color="#f97316" />
@@ -262,7 +255,6 @@ export default function DashboardsView({ onRestoreGraph }) {
             </div>
           </div>
 
-          {/* Top Accounts Table */}
           {topCustomers.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
               <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
@@ -292,10 +284,8 @@ export default function DashboardsView({ onRestoreGraph }) {
         </>
       )}
 
-      {/* Saved Charts */}
       <SavedChartsSection />
 
-      {/* Saved Graphs */}
       <SavedGraphsSection onRestoreGraph={onRestoreGraph} />
     </div>
   );

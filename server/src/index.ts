@@ -1,20 +1,8 @@
-/**
- * Main HTTP server ("backend API").
- *
- * Big picture:
- * 1. Express listens on a port and answers URLs like /api/health.
- * 2. Some routes read files (graph.json) or SQLite (via db.ts).
- * 3. /api/chat turns the user's English into SQL (llm.ts), runs it safely, then
- *    asks the LLM again to summarize rows in plain English.
- */
-
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ESM modules don't define __dirname automatically; we rebuild it from this file's URL.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Load variables from ../../.env (repo root) into process.env — e.g. GROQ_API_KEY, PORT.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import express from 'express';
@@ -31,28 +19,20 @@ import type {
 const app  = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// Precomputed graph for the UI (nodes/edges). Built by the ingest script, not by this file.
 const GRAPH_PATH = path.resolve(__dirname, '../../data/graph.json');
-
-// --- Middleware: runs on (almost) every request before your route handler ---
 
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   methods: ['GET', 'POST'],
 }));
 
-// Parse JSON request bodies (e.g. POST /api/chat { "message": "..." }).
 app.use(express.json({ limit: '1mb' }));
 
-// Simple request logger; `next()` hands off to the next middleware or route.
 app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 
-// --- Routes: each app.get / app.post matches a URL + HTTP method ---
-
-/** Is the server up? Is the graph file present? Is the AI key configured? */
 app.get('/api/health', (_req: Request, res: Response<HealthResponse>) => {
   const graphExists = fs.existsSync(GRAPH_PATH);
   let nodeCount: number | undefined;
@@ -63,7 +43,7 @@ app.get('/api/health', (_req: Request, res: Response<HealthResponse>) => {
       const g = JSON.parse(fs.readFileSync(GRAPH_PATH, 'utf-8')) as Graph;
       nodeCount = g.nodes.length;
       edgeCount = g.edges.length;
-    } catch { /* ignore */ }
+    } catch {}
   }
 
   res.json({
@@ -76,7 +56,6 @@ app.get('/api/health', (_req: Request, res: Response<HealthResponse>) => {
   });
 });
 
-/** Full graph or a filtered subset (?types=invoice,customer) for visualization. */
 app.get('/api/graph', (req: Request, res: Response) => {
   if (!fs.existsSync(GRAPH_PATH)) {
     return res.status(503).json({ error: 'Graph not ready. Run: npm run ingest' });
@@ -103,10 +82,6 @@ app.get('/api/graph', (req: Request, res: Response) => {
   }
 });
 
-/**
- * One business object from SQLite by URL id, e.g. /api/nodes/invoice-90504248
- * Format: "<nodeType>-<databasePrimaryKey>" → pick table → SELECT * → merge raw_json.
- */
 app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: string }>) => {
   const raw = req.params.id;
   const id = typeof raw === 'string' ? raw : raw?.[0];
@@ -121,7 +96,6 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   const nodeType = id.slice(0, separatorIdx);
   const entityId = id.slice(separatorIdx + 1);
 
-  // Maps the graph's node "type" string to an actual SQLite table name.
   const tableMap: Record<string, string> = {
     invoice:     'invoices',
     payment:     'payments',
@@ -145,7 +119,7 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
       try {
         const parsed = JSON.parse(enriched.raw_json);
         enriched = { ...enriched, ...parsed };
-      } catch { /* keep original */ }
+      } catch {}
       delete enriched.raw_json;
     }
 
@@ -156,7 +130,6 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   }
 });
 
-// Cache of all graph node IDs — loaded once on first use, validated against real data.
 let _graphNodeIds: Set<string> | null = null;
 function getGraphNodeIds(): Set<string> {
   if (_graphNodeIds) return _graphNodeIds;
@@ -175,10 +148,6 @@ function strVal(v: unknown): string | null {
   return s === '' ? null : s;
 }
 
-/**
- * Inspect SQL result rows and return graph node IDs in "<type>-<id>" format.
- * Validates every candidate against the actual graph so only real nodes are returned.
- */
 function extractNodeIds(rows: Record<string, unknown>[]): string[] {
   if (!rows.length) return [];
   const graphIds = getGraphNodeIds();
@@ -191,7 +160,6 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
       if (s) candidates.push(`${type}-${s}`);
     };
 
-    // Well-known entity-specific columns (SQLite / LLM may use different aliases)
     push('customer', row.sold_to_party);
     push('customer', row.customer);
     push('payment', row.accounting_document);
@@ -207,7 +175,6 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
     push('product', row.material);
     push('product', row.product);
 
-    // Generic `id` column — try every known type prefix and validate against graph
     const idStr = strVal(row.id);
     if (idStr) {
       for (const t of ['customer', 'invoice', 'payment', 'delivery', 'sales_order', 'product']) {
@@ -215,7 +182,6 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
       }
     }
 
-    // Only keep IDs that actually exist in the graph
     for (const c of candidates) {
       if (graphIds.has(c)) ids.add(c);
     }
@@ -223,10 +189,6 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
   return Array.from(ids);
 }
 
-/**
- * Natural-language Q&A: question → (LLM) SQL → (SQLite) rows → (LLM) short answer.
- * The database layer only allows SELECT; see db.ts.
- */
 app.post('/api/chat', async (
   req: Request<object, ChatResponse, ChatRequest>,
   res: Response<ChatResponse>
@@ -244,7 +206,6 @@ app.post('/api/chat', async (
     return res.status(400).json({ answer: 'message too long (max 500 chars)', error: 'BAD_REQUEST' });
   }
 
-  // Step 1: ask Groq to output JSON { "sql": "..." } or { "error": "OUT_OF_DOMAIN" }.
   const sqlResult = await naturalLanguageToSQL(trimmed);
 
   if ('error' in sqlResult) {
@@ -266,7 +227,6 @@ app.post('/api/chat', async (
     });
   }
 
-  // Step 2: run the generated SELECT against SQLite (throws if not SELECT).
   let rows: Record<string, unknown>[];
   try {
     rows = query(sqlResult.sql);
@@ -279,7 +239,6 @@ app.post('/api/chat', async (
     });
   }
 
-  // Step 3: second LLM call — explain the rows in normal language (no SQL in the prompt to user).
   let answer: string;
   let synthesisError: string | undefined;
   try {
@@ -299,7 +258,6 @@ app.post('/api/chat', async (
   });
 });
 
-/** Aggregate stats for the dashboard UI. */
 app.get('/api/stats', (_req: Request, res: Response) => {
   try {
     const tables = ['customers', 'deliveries', 'invoices', 'payments', 'sales_orders', 'products'] as const;
@@ -310,7 +268,6 @@ app.get('/api/stats', (_req: Request, res: Response) => {
     }
     const revenueRow = queryOne<{ total: number | null }>(`SELECT SUM(CAST(amount AS REAL)) as total FROM payments`);
     const totalRevenue = revenueRow?.total ?? 0;
-    // customers table has no name column; name lives in raw_json (e.g. customerName).
     const topCustomers = query<{ id: string; name: string; invoice_count: number; revenue: number }>(
       `SELECT c.id,
               COALESCE(json_extract(c.raw_json, '$.customerName'), c.id) AS name,
@@ -336,7 +293,6 @@ app.get('/api/stats', (_req: Request, res: Response) => {
   }
 });
 
-/** Row counts per table — handy to see if ingest populated the DB. */
 app.get('/api/schema', (_req: Request, res: Response) => {
   try {
     const tables = ['customers', 'deliveries', 'invoices', 'payments', 'sales_orders', 'products', 'sales_order_items', 'billing_document_items'];
@@ -355,12 +311,10 @@ app.get('/api/schema', (_req: Request, res: Response) => {
   }
 });
 
-// No matching route → 404.
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Express error handler (4 args) — catches errors passed via next(err).
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });

@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Override ReactFlow defaults */
 .react-flow__node {
   cursor: pointer;
 }
@@ -14,7 +13,6 @@
   display: none;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }

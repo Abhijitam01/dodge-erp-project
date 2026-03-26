@@ -1,11 +1,3 @@
-/**
- * Shared TypeScript shapes for the server.
- *
- * - Raw* interfaces: CSV / SAP-style field names used during ingest.
- * - Graph*: nodes and edges for the visualization (`graph.json`).
- * - Chat* / *Response: JSON bodies for the HTTP API (see index.ts routes).
- */
-
 export interface RawInvoice {
     billingDocument: string;
     billingDocumentType?: string;

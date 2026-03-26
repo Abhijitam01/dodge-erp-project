@@ -45,7 +45,6 @@ export default function DashboardPage() {
       <Sidebar activeView={activeView} onNavigate={handleNavigate} nodeCount={nodeCount} />
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Top bar */}
         <header className="h-11 shrink-0 flex items-center px-5 bg-white border-b border-gray-200 gap-3">
           <button
             onClick={() => navigate('/')}
@@ -71,7 +70,6 @@ export default function DashboardPage() {
           )}
         </header>
 
-        {/* View content — all three views stay mounted; CSS hides the inactive ones */}
         <main className="flex-1 overflow-hidden flex">
           <div style={{ display: activeView === 'ask' ? 'flex' : 'none' }} className="flex-1 overflow-hidden">
             <AskView

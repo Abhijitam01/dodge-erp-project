@@ -65,15 +65,12 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
   const [degreeMap, setDegreeMap] = useState({});
   const [graphMode, setGraphMode] = useState('full');
 
-  // Inline ask bar state
   const [askQuery, setAskQuery] = useState('');
   const [askLoading, setAskLoading] = useState(false);
   const [askAnswer, setAskAnswer] = useState(null);
 
-  // Save toast
   const [savedToast, setSavedToast] = useState(false);
 
-  // Stay in full-graph mode when highlights arrive so background nodes remain visible (dimmed)
   useEffect(() => {
     if (highlightedIds && highlightedIds.size > 0) {
       setGraphMode('full');
@@ -100,9 +97,7 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
           ? { ...node, data: { ...node.data, metadata: data.data ?? {} } }
           : prev
       );
-    } catch {
-      // fall back to graph node data
-    }
+    } catch {}
   }
 
   async function handleAsk() {
@@ -144,7 +139,6 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
 
   return (
     <div className="flex flex-1 overflow-hidden h-full flex-col">
-      {/* Tab bar */}
       <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200">
         <button
           onClick={() => setGraphMode('full')}
@@ -202,7 +196,6 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
         )}
       </div>
 
-      {/* Graph + panel */}
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex-1 overflow-hidden relative">
           <GraphView
@@ -213,7 +206,6 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
             onHighlightedSubsetEmpty={handleHighlightedSubsetEmpty}
           />
 
-          {/* Floating inline ask bar */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-[420px] max-w-[80%] flex flex-col gap-2">
             <div className="flex gap-2 bg-white rounded-xl shadow-lg border border-gray-200 px-3 py-2">
               <svg className="text-gray-400 shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

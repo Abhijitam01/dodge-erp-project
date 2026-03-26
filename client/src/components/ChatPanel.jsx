@@ -56,13 +56,11 @@ export default function ChatPanel() {
 
   return (
     <aside className="w-[300px] flex flex-col border-l border-gray-200 bg-white shrink-0">
-      {/* Title */}
       <div className="px-4 pt-4 pb-3 border-b border-gray-100">
         <p className="text-sm font-semibold text-gray-900">Chat with Graph</p>
         <p className="text-xs text-gray-400 mt-0.5">Order to Cash</p>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {messages.map((msg, i) => (
           <ChatMessage key={i} {...msg} />
@@ -86,7 +84,6 @@ export default function ChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Status */}
       <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-1.5">
         <span className={`w-1.5 h-1.5 rounded-full ${thinking ? 'bg-yellow-400' : 'bg-green-400'}`} />
         <span className="text-xs text-gray-400">
@@ -94,7 +91,6 @@ export default function ChatPanel() {
         </span>
       </div>
 
-      {/* Input */}
       <div className="px-3 pb-3">
         <div className="flex gap-2 items-end border border-gray-200 rounded-xl px-3 py-2 focus-within:border-gray-400 transition-colors">
           <textarea
