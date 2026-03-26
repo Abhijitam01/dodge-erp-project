@@ -30,3 +30,4 @@ COPY server/tsconfig.json ./
 EXPOSE 3001
 
 CMD ["pnpm", "start"]
+# trigger redeploy
