@@ -197,6 +197,13 @@ RULES:
 - To link invoices to deliveries join via billing_document_items.billing_document = invoices.id and billing_document_items.reference_delivery = deliveries.id.
 - To link invoices to products join via billing_document_items.billing_document = invoices.id and billing_document_items.material = products.id.
 - raw_json columns are blobs — do not SELECT * with them unless needed, use specific columns.
+- Always include entity primary keys so the graph can highlight results. Use these specific column aliases so the visualization layer can match them:
+  - Sales order id  → alias as sales_order          (e.g. so.id AS sales_order)
+  - Customer id     → select sold_to_party FK as-is  (e.g. so.sold_to_party)
+  - Delivery id     → alias as delivery_document     (e.g. d.id AS delivery_document)
+  - Invoice id      → alias as billing_document      (e.g. i.id AS billing_document)
+  - Payment id      → alias as id, or leave unaliased when payment id is the only id column in the SELECT
+  - For single-table queries, selecting the bare id column is sufficient.
 
 EXAMPLE QUERIES:
 
@@ -207,7 +214,7 @@ EXAMPLE QUERIES:
 {"sql": "SELECT p.id, p.product_old_id, p.product_group, COUNT(DISTINCT bdi.billing_document) as invoice_count FROM products p JOIN billing_document_items bdi ON bdi.material = p.id GROUP BY p.id ORDER BY invoice_count DESC LIMIT 20"}
 
 "Trace the full flow for sales order 740506"
-{"sql": "SELECT so.id as sales_order, so.sold_to_party as customer, d.id as delivery, d.goods_movement_status, i.id as invoice, i.total_net_amount, i.is_cancelled, p.id as payment, p.amount, p.posting_date FROM sales_orders so LEFT JOIN billing_document_items bdi ON bdi.reference_delivery IN (SELECT id FROM deliveries) LEFT JOIN invoices i ON i.id = bdi.billing_document AND i.sold_to_party = so.sold_to_party LEFT JOIN deliveries d ON d.id = bdi.reference_delivery LEFT JOIN payments p ON p.id = i.accounting_document WHERE so.id = '740506' LIMIT 50"}
+{"sql": "SELECT so.id as sales_order, so.sold_to_party, d.id as delivery_document, d.goods_movement_status, i.id as billing_document, i.total_net_amount, i.is_cancelled, p.id as payment_id, p.amount, p.posting_date FROM sales_orders so LEFT JOIN billing_document_items bdi ON bdi.reference_delivery IN (SELECT id FROM deliveries) LEFT JOIN invoices i ON i.id = bdi.billing_document AND i.sold_to_party = so.sold_to_party LEFT JOIN deliveries d ON d.id = bdi.reference_delivery LEFT JOIN payments p ON p.id = i.accounting_document WHERE so.id = '740506' LIMIT 50"}
 
 "Find invoices with no payment"
 {"sql": "SELECT i.id, i.total_net_amount, i.transaction_currency, i.creation_date, i.sold_to_party FROM invoices i LEFT JOIN payments p ON p.id = i.accounting_document WHERE p.id IS NULL AND i.is_cancelled = 0 LIMIT 50"}
@@ -231,7 +238,7 @@ export async function naturalLanguageToSQL(question: string): Promise<SQLResult>
 
   let raw: string;
   try {
-    raw = await callLLM(prompt, 512);
+    raw = await callLLM(prompt, 1024);
   } catch (err) {
     return { error: 'LLM_ERROR', message: (err as Error).message };
   }
