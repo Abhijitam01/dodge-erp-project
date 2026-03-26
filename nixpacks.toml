@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["cd server && pnpm install"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd server && pnpm start"
