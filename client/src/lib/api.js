@@ -19,3 +19,8 @@ export async function sendChat(message) {
   const { data } = await http.post('/api/chat', { message });
   return data;
 }
+
+export async function fetchStats() {
+  const { data } = await http.get('/api/stats');
+  return data;
+}

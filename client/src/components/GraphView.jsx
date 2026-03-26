@@ -13,8 +13,25 @@ import { fetchGraph } from '../lib/api';
 import { layoutNodes, transformEdges, buildDegreeMap } from '../lib/graphUtils';
 
 function DotNode({ data }) {
+  const { color, highlightedIds, nodeId } = data;
+  const isHighlightMode = highlightedIds && highlightedIds.size > 0;
+  const isHighlighted = isHighlightMode && highlightedIds.has(nodeId);
+  const isDimmed = isHighlightMode && !isHighlighted;
+
+  const size = isHighlighted ? 14 : 10;
+  const style = {
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    background: color,
+    cursor: 'pointer',
+    opacity: isDimmed ? 0.12 : 1,
+    transition: 'all 0.2s',
+    boxShadow: isHighlighted ? `0 0 0 2px white, 0 0 0 4px ${color}` : 'none',
+  };
+
   return (
-    <div style={{ width: 10, height: 10, borderRadius: '50%', background: data.color, cursor: 'pointer' }}>
+    <div style={style}>
       <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: 'none' }} />
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
     </div>
@@ -23,12 +40,7 @@ function DotNode({ data }) {
 
 const nodeTypes = { dot: DotNode };
 
-const defaultEdgeOptions = {
-  style: { stroke: '#93c5fd', strokeWidth: 1, opacity: 0.6 },
-  type: 'straight',
-};
-
-function GraphCanvas({ onNodeSelect }) {
+function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
@@ -49,23 +61,42 @@ function GraphCanvas({ onNodeSelect }) {
       setNodes(laid);
       setEdges(edged);
       setLoading(false);
+      onDegreeMap?.(dm);
     }).catch(() => setLoading(false));
   }, []);
 
+  // Apply highlight data to node objects
   useEffect(() => {
-    if (hideGranular) {
-      const filtered = allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2);
-      const visibleIds = new Set(filtered.map(n => n.id));
-      setNodes(filtered);
-      setEdges(allEdges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target)));
-    } else {
-      setNodes(allNodes);
-      setEdges(allEdges);
-    }
-  }, [hideGranular, allNodes, allEdges, degreeMap]);
+    const base = hideGranular
+      ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
+      : allNodes;
+
+    const updated = base.map(n => ({
+      ...n,
+      data: { ...n.data, highlightedIds, nodeId: n.id },
+    }));
+    setNodes(updated);
+
+    const visibleIds = new Set(updated.map(n => n.id));
+    const isHL = highlightedIds && highlightedIds.size > 0;
+    const updatedEdges = allEdges
+      .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
+      .map(e => {
+        const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
+        return {
+          ...e,
+          style: {
+            stroke: '#93c5fd',
+            strokeWidth: edgeHighlighted ? 2 : 1,
+            opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.6,
+          },
+        };
+      });
+    setEdges(updatedEdges);
+  }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds]);
 
   const onNodeClick = useCallback((_, node) => {
-    onNodeSelect(node);
+    onNodeSelect?.(node);
   }, [onNodeSelect]);
 
   return (
@@ -74,7 +105,7 @@ function GraphCanvas({ onNodeSelect }) {
         <div className="h-full flex items-center justify-center bg-gray-100 border-r border-gray-200">
           <button
             onClick={() => setMinimized(false)}
-            className="text-gray-500 hover:text-gray-800 rotate-90"
+            className="text-gray-500 hover:text-gray-800"
             title="Expand"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -97,7 +128,6 @@ function GraphCanvas({ onNodeSelect }) {
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
-            defaultEdgeOptions={defaultEdgeOptions}
             nodesDraggable={false}
             elementsSelectable
             fitView
@@ -121,17 +151,16 @@ function GraphCanvas({ onNodeSelect }) {
             <button
               onClick={() => setHideGranular(v => !v)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors shadow-sm ${
-                hideGranular
-                  ? 'bg-blue-600 text-white hover:bg-blue-500'
-                  : 'bg-gray-900 text-white hover:bg-gray-700'
+                hideGranular ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-gray-900 text-white hover:bg-gray-700'
               }`}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-              </svg>
               {hideGranular ? 'Show All' : 'Hide Granular Overlay'}
             </button>
+            {highlightedIds && highlightedIds.size > 0 && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium rounded-full shadow-sm">
+                {highlightedIds.size} highlighted
+              </span>
+            )}
           </div>
         </>
       )}
@@ -139,10 +168,10 @@ function GraphCanvas({ onNodeSelect }) {
   );
 }
 
-export default function GraphView({ onNodeSelect }) {
+export default function GraphView({ onNodeSelect, onDegreeMap, highlightedIds }) {
   return (
     <ReactFlowProvider>
-      <GraphCanvas onNodeSelect={onNodeSelect} />
+      <GraphCanvas onNodeSelect={onNodeSelect} onDegreeMap={onDegreeMap} highlightedIds={highlightedIds} />
     </ReactFlowProvider>
   );
 }

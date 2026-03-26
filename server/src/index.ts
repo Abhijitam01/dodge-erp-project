@@ -230,6 +230,31 @@ app.post('/api/chat', async (
   });
 });
 
+/** Aggregate stats for the dashboard UI. */
+app.get('/api/stats', (_req: Request, res: Response) => {
+  try {
+    const tables = ['customers', 'deliveries', 'invoices', 'payments', 'sales_orders', 'products'] as const;
+    const counts: Record<string, number> = {};
+    for (const t of tables) {
+      const row = queryOne<{ n: number }>(`SELECT COUNT(*) as n FROM ${t}`);
+      counts[t] = row?.n ?? 0;
+    }
+    const revenueRow = queryOne<{ total: number | null }>(`SELECT SUM(CAST(amount AS REAL)) as total FROM payments`);
+    const totalRevenue = revenueRow?.total ?? 0;
+    const topCustomers = query<{ id: string; name: string; invoice_count: number }>(
+      `SELECT c.id, c.name, COUNT(i.id) as invoice_count
+       FROM customers c
+       LEFT JOIN invoices i ON i.sold_to_party = c.id
+       GROUP BY c.id
+       ORDER BY invoice_count DESC
+       LIMIT 8`
+    );
+    res.json({ counts, totalRevenue, topCustomers });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 /** Row counts per table — handy to see if ingest populated the DB. */
 app.get('/api/schema', (_req: Request, res: Response) => {
   try {

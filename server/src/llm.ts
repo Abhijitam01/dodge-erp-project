@@ -1,12 +1,4 @@
-/**
- * Groq (LLM) integration — two jobs:
- *
- * 1) naturalLanguageToSQL — turn a question into a safe SELECT (JSON from the model).
- * 2) synthesizeAnswer — turn result rows back into a short natural-language reply.
- *
- * Flow guard: we first check DOMAIN_KEYWORDS so random questions skip the API
- * and return OUT_OF_DOMAIN without spending tokens.
- */
+
 
 import dotenv from 'dotenv';
 import path from 'path';
@@ -15,11 +7,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// OpenAI-compatible Chat Completions endpoint hosted by Groq.
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL        = 'llama-3.3-70b-versatile';
 
-// Embedded "cheat sheet" for the model: table names, columns, and join rules.
 const DB_SCHEMA = `
 You have access to a SQLite database for an SAP Order-to-Cash (O2C) process.
 
@@ -154,7 +144,6 @@ export function looksOnTopic(message: string): boolean {
   return DOMAIN_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-/** Single place that talks to Groq: POST JSON, read assistant text from choices[0]. */
 async function callLLM(prompt: string, maxTokens = 512): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY is not set');
@@ -186,7 +175,6 @@ async function callLLM(prompt: string, maxTokens = 512): Promise<string> {
   return content.trim();
 }
 
-// System-style instructions prepended to every "generate SQL" request.
 const SQL_PROMPT_PREFIX = `
 ${DB_SCHEMA}
 
@@ -235,10 +223,7 @@ export type SQLResult =
   | { sql: string }
   | { error: 'OUT_OF_DOMAIN' | 'PARSE_ERROR' | 'UNSAFE_QUERY' | 'LLM_ERROR'; message?: string };
 
-/**
- * Cheap gate → LLM → JSON parse → validate SELECT only.
- * index.ts branches on the `error` variant to return friendly HTTP responses.
- */
+
 export async function naturalLanguageToSQL(question: string): Promise<SQLResult> {
   if (!looksOnTopic(question)) return { error: 'OUT_OF_DOMAIN' };
 
@@ -251,7 +236,6 @@ export async function naturalLanguageToSQL(question: string): Promise<SQLResult>
     return { error: 'LLM_ERROR', message: (err as Error).message };
   }
 
-  // Models sometimes wrap JSON in markdown fences; strip those before JSON.parse.
   const cleaned = raw.replace(/```json|```/g, '').trim();
 
   try {
@@ -267,7 +251,6 @@ export async function naturalLanguageToSQL(question: string): Promise<SQLResult>
   }
 }
 
-/** Second LLM pass: same data the user would see in a table, summarized in prose. */
 export async function synthesizeAnswer(
   question: string,
   results: Record<string, unknown>[]

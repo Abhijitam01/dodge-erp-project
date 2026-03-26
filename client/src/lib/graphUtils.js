@@ -65,7 +65,7 @@ export function transformEdges(apiEdges) {
     source: edge.source,
     target: edge.target,
     type:   'straight',
-    style:  { stroke: '#93c5fd', strokeWidth: 1, opacity: 0.55 },
+    style:  { stroke: '#93c5fd', strokeWidth: 1.5, opacity: 0.7 },
   }));
 }
 
