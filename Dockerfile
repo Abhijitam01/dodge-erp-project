@@ -12,9 +12,10 @@ COPY data ./data
 # Install pnpm
 RUN npm install -g pnpm
 
-# Install server dependencies (compiles better-sqlite3)
+# Install server dependencies, then force-recompile better-sqlite3 for this platform
 WORKDIR /app/server
 RUN pnpm install --frozen-lockfile
+RUN pnpm rebuild better-sqlite3
 
 # Copy server source
 COPY server/src ./src
