@@ -182,7 +182,7 @@ function extractNodeIds(rows: Record<string, unknown>[]): string[] {
 
     // Well-known entity-specific columns
     if (row.sold_to_party != null) candidates.push(`customer-${row.sold_to_party}`);
-    if (row.accounting_document != null) candidates.push(`invoice-${row.accounting_document}`);
+    if (row.accounting_document != null) candidates.push(`payment-${row.accounting_document}`);
     if (row.delivery_id != null) candidates.push(`delivery-${row.delivery_id}`);
     if (row.delivery_document != null) candidates.push(`delivery-${row.delivery_document}`);
     if (row.billing_document != null) candidates.push(`invoice-${row.billing_document}`);
