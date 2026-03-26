@@ -156,6 +156,30 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
 });
 
 /**
+ * Inspect SQL result rows and return graph node IDs in "<type>-<id>" format.
+ * Covers the four main entity types using their known SQLite primary-key columns.
+ */
+function extractNodeIds(rows: Record<string, unknown>[]): string[] {
+  if (!rows.length) return [];
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.sold_to_party != null) ids.add(`customer-${row.sold_to_party}`);
+    if (row.accounting_document != null) ids.add(`invoice-${row.accounting_document}`);
+    if (row.delivery_id != null) ids.add(`delivery-${row.delivery_id}`);
+    // payments primary key is `id`; only tag it if other payment columns are present
+    const colNames = Object.keys(row).join(' ');
+    if (row.id != null && /amount|payment|fiscal/.test(colNames)) {
+      ids.add(`payment-${row.id}`);
+    }
+    // customer rows selected directly (e.g. SELECT * FROM customers)
+    if (row.id != null && colNames.includes('sold_to_party')) {
+      ids.add(`customer-${row.id}`);
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
  * Natural-language Q&A: question → (LLM) SQL → (SQLite) rows → (LLM) short answer.
  * The database layer only allows SELECT; see db.ts.
  */
@@ -226,6 +250,7 @@ app.post('/api/chat', async (
     sql:          sqlResult.sql,
     results:      rows,
     resultCount:  rows.length,
+    nodeIds:      extractNodeIds(rows),
     synthesisError,
   });
 });

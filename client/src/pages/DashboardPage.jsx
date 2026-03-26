@@ -29,6 +29,12 @@ export default function DashboardPage() {
     setActiveView('ask');
   }
 
+  function handleRestoreGraph(ids, query) {
+    setHighlightedIds(ids);
+    setPrefillQuery(query);
+    setActiveView('graph');
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar activeView={activeView} onNavigate={setActiveView} nodeCount={nodeCount} />
@@ -60,23 +66,26 @@ export default function DashboardPage() {
           )}
         </header>
 
-        {/* View content */}
+        {/* View content — all three views stay mounted; CSS hides the inactive ones */}
         <main className="flex-1 overflow-hidden flex">
-          {activeView === 'ask' && (
+          <div style={{ display: activeView === 'ask' ? 'flex' : 'none' }} className="flex-1 overflow-hidden">
             <AskView
-              key={prefillQuery}
               initialQuery={prefillQuery}
               onHighlight={handleHighlight}
+              onExploreGraph={() => setActiveView('graph')}
             />
-          )}
-          {activeView === 'graph' && (
+          </div>
+          <div style={{ display: activeView === 'graph' ? 'flex' : 'none' }} className="flex-1 overflow-hidden">
             <KnowledgeGraphView
               highlightedIds={highlightedIds}
               onDegreeMap={handleDegreeMap}
               onQueryNode={handleQueryNode}
+              onHighlight={handleHighlight}
             />
-          )}
-          {activeView === 'dashboards' && <DashboardsView />}
+          </div>
+          <div style={{ display: activeView === 'dashboards' ? 'flex' : 'none' }} className="flex-1 overflow-hidden">
+            <DashboardsView onRestoreGraph={handleRestoreGraph} />
+          </div>
         </main>
       </div>
     </div>

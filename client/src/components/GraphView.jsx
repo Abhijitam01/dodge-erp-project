@@ -6,6 +6,7 @@ import ReactFlow, {
   ReactFlowProvider,
   Handle,
   Position,
+  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -40,7 +41,7 @@ function DotNode({ data }) {
 
 const nodeTypes = { dot: DotNode };
 
-function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds }) {
+function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'full' }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,8 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds }) {
   const [degreeMap, setDegreeMap] = useState({});
   const [allNodes, setAllNodes] = useState([]);
   const [allEdges, setAllEdges] = useState([]);
+
+  const { fitView } = useReactFlow();
 
   useEffect(() => {
     fetchGraph().then(data => {
@@ -65,35 +68,66 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds }) {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Apply highlight data to node objects
   useEffect(() => {
-    const base = hideGranular
-      ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
-      : allNodes;
+    if (loading) return;
 
-    const updated = base.map(n => ({
-      ...n,
-      data: { ...n.data, highlightedIds, nodeId: n.id },
-    }));
-    setNodes(updated);
-
-    const visibleIds = new Set(updated.map(n => n.id));
     const isHL = highlightedIds && highlightedIds.size > 0;
-    const updatedEdges = allEdges
-      .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
-      .map(e => {
-        const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
-        return {
+
+    if (graphMode === 'highlighted' && isHL) {
+      // Show only highlighted nodes and edges between them
+      const hlNodes = allNodes
+        .filter(n => highlightedIds.has(n.id))
+        .map(n => ({
+          ...n,
+          data: { ...n.data, highlightedIds, nodeId: n.id },
+        }));
+
+      const hlEdges = allEdges
+        .filter(e => highlightedIds.has(e.source) && highlightedIds.has(e.target))
+        .map(e => ({
           ...e,
-          style: {
-            stroke: '#93c5fd',
-            strokeWidth: edgeHighlighted ? 2 : 1,
-            opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.6,
-          },
-        };
-      });
-    setEdges(updatedEdges);
-  }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds]);
+          style: { stroke: '#3b82f6', strokeWidth: 2.5, opacity: 1 },
+        }));
+
+      setNodes(hlNodes);
+      setEdges(hlEdges);
+
+      setTimeout(() => {
+        fitView({
+          nodes: hlNodes.map(n => ({ id: n.id })),
+          padding: 0.3,
+          duration: 600,
+        });
+      }, 50);
+    } else {
+      // Full mode — all nodes with dim/bright based on highlight state
+      const base = hideGranular
+        ? allNodes.filter(n => (degreeMap[n.id] ?? 0) >= 2)
+        : allNodes;
+
+      const updated = base.map(n => ({
+        ...n,
+        data: { ...n.data, highlightedIds: isHL ? highlightedIds : new Set(), nodeId: n.id },
+      }));
+      setNodes(updated);
+
+      const visibleIds = new Set(updated.map(n => n.id));
+      const updatedEdges = allEdges
+        .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
+        .map(e => {
+          const edgeHighlighted = isHL && (highlightedIds.has(e.source) || highlightedIds.has(e.target));
+          return {
+            ...e,
+            style: {
+              stroke: edgeHighlighted ? '#3b82f6' : '#93c5fd',
+              strokeWidth: edgeHighlighted ? 2.5 : 1.5,
+              opacity: isHL ? (edgeHighlighted ? 1 : 0.04) : 0.7,
+            },
+          };
+        });
+      setEdges(updatedEdges);
+    }
+  }, [hideGranular, allNodes, allEdges, degreeMap, highlightedIds, graphMode, loading]);
 
   const onNodeClick = useCallback((_, node) => {
     onNodeSelect?.(node);
@@ -168,10 +202,15 @@ function GraphCanvas({ onNodeSelect, onDegreeMap, highlightedIds }) {
   );
 }
 
-export default function GraphView({ onNodeSelect, onDegreeMap, highlightedIds }) {
+export default function GraphView({ onNodeSelect, onDegreeMap, highlightedIds, graphMode = 'full' }) {
   return (
     <ReactFlowProvider>
-      <GraphCanvas onNodeSelect={onNodeSelect} onDegreeMap={onDegreeMap} highlightedIds={highlightedIds} />
+      <GraphCanvas
+        onNodeSelect={onNodeSelect}
+        onDegreeMap={onDegreeMap}
+        highlightedIds={highlightedIds}
+        graphMode={graphMode}
+      />
     </ReactFlowProvider>
   );
 }

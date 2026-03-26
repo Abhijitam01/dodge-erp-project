@@ -145,6 +145,7 @@ export interface RawInvoice {
     sql?: string;
     results?: Record<string, unknown>[];
     resultCount?: number;
+    nodeIds?: string[];
     guarded?: boolean;
     error?: string;
     synthesisError?: string;

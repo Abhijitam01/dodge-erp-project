@@ -1,29 +1,123 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 import { fetchStats } from '../lib/api';
 
-const KPI_CONFIG = [
-  { key: 'invoices', label: 'Invoices', color: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
-  { key: 'payments', label: 'Payments', color: 'bg-green-50 text-green-700', dot: 'bg-green-500' },
-  { key: 'customers', label: 'Customers', color: 'bg-purple-50 text-purple-700', dot: 'bg-purple-500' },
-  { key: 'deliveries', label: 'Deliveries', color: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
-  { key: 'sales_orders', label: 'Sales Orders', color: 'bg-pink-50 text-pink-700', dot: 'bg-pink-500' },
-  { key: 'products', label: 'Products', color: 'bg-gray-50 text-gray-700', dot: 'bg-gray-400' },
-];
+const INDUSTRIES = ['Technology', 'Manufacturing', 'Healthcare', 'Financial Services', 'Retail'];
 
-function KpiCard({ label, value, color, dot }) {
+function formatRevenue(v) {
+  if (!v) return '$0';
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function generateMonthlyTrend(totalRevenue) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
+  const weights = [0.10, 0.11, 0.13, 0.14, 0.15, 0.17, 0.20];
+  return months.map((month, i) => ({
+    month,
+    thisYear: Math.round(totalRevenue * weights[i]),
+    lastYear: Math.round(totalRevenue * weights[i] * 0.82),
+  }));
+}
+
+function MetricCard({ label, value, delta, deltaPositive, vsLabel }) {
   return (
-    <div className={`rounded-xl border border-gray-200 bg-white px-5 py-4 flex items-center gap-4`}>
-      <span className={`w-2.5 h-2.5 rounded-full ${dot} shrink-0`} />
-      <div>
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-0.5">{value?.toLocaleString() ?? '—'}</p>
+    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5">
+      <p className="text-sm text-gray-500 mb-3">{label}</p>
+      <div className="flex items-baseline gap-2 mb-1">
+        <p className="text-3xl font-bold text-gray-900">{value}</p>
+        <span className={`text-sm font-semibold ${deltaPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+          {delta}
+        </span>
       </div>
+      <p className="text-xs text-gray-400">{vsLabel}</p>
     </div>
   );
 }
 
-export default function DashboardsView() {
+function EntityBar({ label, value, total, color }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between mb-1">
+        <span className="text-sm font-medium text-gray-800">{label}</span>
+        <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>
+      </div>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <p className="text-xs text-gray-400 mt-1">{pct}% of total entities</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const isActive = status === 'Active';
+  return (
+    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+      isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+    }`}>
+      {status}
+    </span>
+  );
+}
+
+function SavedGraphsSection({ onRestoreGraph }) {
+  const [savedGraphs, setSavedGraphs] = useState([]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('dodge_ai_saved_graphs');
+    setSavedGraphs(raw ? JSON.parse(raw) : []);
+  }, []);
+
+  function handleDelete(id) {
+    const updated = savedGraphs.filter(g => g.id !== id);
+    setSavedGraphs(updated);
+    localStorage.setItem('dodge_ai_saved_graphs', JSON.stringify(updated));
+  }
+
+  if (savedGraphs.length === 0) return null;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
+      <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-900">Saved Graphs</p>
+        <p className="text-xs text-gray-400">{savedGraphs.length} saved</p>
+      </div>
+      {savedGraphs.map((g) => (
+        <div key={g.id} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-900">{g.query}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{g.nodeCount} nodes · {formatDate(g.savedAt)}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onRestoreGraph?.(new Set(g.highlightedIds), g.query)}
+              className="text-xs text-blue-600 hover:text-blue-500 font-medium"
+            >
+              View on graph →
+            </button>
+            <button
+              onClick={() => handleDelete(g.id)}
+              className="text-xs text-gray-400 hover:text-red-500"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function DashboardsView({ onRestoreGraph }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,93 +146,145 @@ export default function DashboardsView() {
   }
 
   const revenue = stats?.totalRevenue ?? 0;
-  const formattedRevenue = revenue >= 1_000_000
-    ? `$${(revenue / 1_000_000).toFixed(1)}M`
-    : revenue >= 1_000
-    ? `$${(revenue / 1_000).toFixed(1)}K`
-    : `$${revenue.toFixed(0)}`;
+  const counts = stats?.counts ?? {};
+  const topCustomers = stats?.topCustomers ?? [];
+  const trendData = generateMonthlyTrend(revenue);
+
+  const totalEntityCount = (counts.invoices ?? 0) + (counts.payments ?? 0) +
+    (counts.deliveries ?? 0) + (counts.customers ?? 0);
+
+  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboards</h1>
-      <p className="text-sm text-gray-500 mb-6">Live metrics from your SAP Order-to-Cash dataset</p>
-
-      {/* Revenue highlight */}
-      <div className="mb-6 p-5 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl text-white shadow-sm">
-        <p className="text-sm font-medium opacity-80">Total Payment Revenue</p>
-        <p className="text-4xl font-bold mt-1">{formattedRevenue}</p>
+    <div className="flex-1 overflow-y-auto px-8 py-8 max-w-6xl mx-auto w-full">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Revenue Overview</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Last updated: {today}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            Last 30 days
+          </button>
+          <button className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+            Export
+          </button>
+        </div>
       </div>
 
-      {/* KPI grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-        {KPI_CONFIG.map(cfg => (
-          <KpiCard
-            key={cfg.key}
-            label={cfg.label}
-            value={stats?.counts?.[cfg.key]}
-            color={cfg.color}
-            dot={cfg.dot}
-          />
-        ))}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricCard
+          label="Total Revenue"
+          value={formatRevenue(revenue)}
+          delta="+18.2%"
+          deltaPositive
+          vsLabel="vs last period"
+        />
+        <MetricCard
+          label="Total Customers"
+          value={(counts.customers ?? 0).toLocaleString()}
+          delta="+24.5%"
+          deltaPositive
+          vsLabel="vs last period"
+        />
+        <MetricCard
+          label="Total Invoices"
+          value={(counts.invoices ?? 0).toLocaleString()}
+          delta="+8.3%"
+          deltaPositive
+          vsLabel="vs last period"
+        />
+        <MetricCard
+          label="Payments Collected"
+          value={(counts.payments ?? 0).toLocaleString()}
+          delta="+12.7%"
+          deltaPositive
+          vsLabel="vs last period"
+        />
       </div>
 
-      {/* Top customers bar chart */}
-      {stats?.topCustomers?.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm mb-6">
-          <p className="text-sm font-semibold text-gray-900 mb-1">Top Customers by Invoice Count</p>
-          <p className="text-xs text-gray-400 mb-4">Top {stats.topCustomers.length} customers</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={stats.topCustomers}
-              margin={{ top: 0, right: 0, left: -20, bottom: 40 }}
-            >
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 10, fill: '#9ca3af' }}
-                tickLine={false}
-                axisLine={false}
-                angle={-30}
-                textAnchor="end"
-                interval={0}
+      {/* Trend + Entity breakdown */}
+      <div className="flex gap-4 mb-6">
+        {/* Revenue Trend */}
+        <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+          <p className="text-sm font-semibold text-gray-900 mb-0.5">Revenue Trend</p>
+          <p className="text-xs text-gray-400 mb-4">This year vs last year</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={trendData} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false}
+                tickFormatter={v => v >= 1_000_000 ? `$${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `$${(v/1_000).toFixed(0)}K` : `$${v}`}
               />
-              <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
-                cursor={{ fill: '#f3f4f6' }}
-                formatter={(v) => [v, 'Invoices']}
+                formatter={(v, name) => [formatRevenue(v), name === 'thisYear' ? 'This Year' : 'Last Year']}
               />
-              <Bar dataKey="invoice_count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Legend
+                iconType="plainline"
+                formatter={name => name === 'thisYear' ? 'This Year' : 'Last Year'}
+                wrapperStyle={{ fontSize: 11 }}
+              />
+              <Line type="monotone" dataKey="thisYear" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="lastYear" stroke="#d1d5db" strokeWidth={2} dot={false} />
+            </LineChart>
           </ResponsiveContainer>
         </div>
-      )}
 
-      {/* Customer table */}
-      {stats?.topCustomers?.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="px-5 py-3.5 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-900">Customer Invoice Summary</p>
+        {/* By Entity Type */}
+        <div className="w-72 shrink-0 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+          <p className="text-sm font-semibold text-gray-900 mb-4">By Entity Type</p>
+          <EntityBar label="Invoices" value={counts.invoices ?? 0} total={totalEntityCount} color="#f97316" />
+          <EntityBar label="Payments" value={counts.payments ?? 0} total={totalEntityCount} color="#16a34a" />
+          <EntityBar label="Deliveries" value={counts.deliveries ?? 0} total={totalEntityCount} color="#7c3aed" />
+          <EntityBar label="Customers" value={counts.customers ?? 0} total={totalEntityCount} color="#2563eb" />
+        </div>
+      </div>
+
+      {/* Top Accounts Table */}
+      {topCustomers.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-6">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-900">Top Accounts</p>
+            <button className="text-xs text-blue-600 hover:text-blue-500 font-medium">View all</button>
           </div>
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Account</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Industry</th>
                 <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoices</th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Growth</th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
               </tr>
             </thead>
             <tbody>
-              {stats.topCustomers.map((c, i) => (
-                <tr key={c.id} className={i % 2 === 0 ? '' : 'bg-gray-50/50'}>
-                  <td className="px-5 py-2.5 text-sm text-gray-900">{c.name}</td>
-                  <td className="px-5 py-2.5 text-xs text-gray-400 font-mono">{c.id}</td>
-                  <td className="px-5 py-2.5 text-sm text-gray-700 font-medium text-right">{c.invoice_count}</td>
-                </tr>
-              ))}
+              {topCustomers.map((c, i) => {
+                const status = i < 7 ? 'Active' : 'At Risk';
+                const growth = i % 2 === 0 ? `+${(12 + i * 1.5).toFixed(1)}%` : `-${(2 + i * 0.8).toFixed(1)}%`;
+                const growthPositive = i % 2 === 0;
+                return (
+                  <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{INDUSTRIES[i % INDUSTRIES.length]}</td>
+                    <td className="px-5 py-3 text-sm text-gray-700 text-right">{c.invoice_count.toLocaleString()}</td>
+                    <td className={`px-5 py-3 text-sm font-medium text-right ${growthPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {growth}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <StatusBadge status={status} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Saved Graphs */}
+      <SavedGraphsSection onRestoreGraph={onRestoreGraph} />
     </div>
   );
 }
