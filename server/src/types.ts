@@ -52,7 +52,60 @@ export interface RawInvoice {
     [key: string]: unknown;
   }
 
-  export type NodeType = 'invoice' | 'payment' | 'customer' | 'delivery';
+  export interface RawSalesOrder {
+    salesOrder: string;
+    salesOrderType?: string;
+    salesOrganization?: string;
+    distributionChannel?: string;
+    soldToParty?: string;
+    creationDate?: string;
+    totalNetAmount?: string;
+    overallDeliveryStatus?: string;
+    transactionCurrency?: string;
+    headerBillingBlockReason?: string;
+    deliveryBlockReason?: string;
+    [key: string]: unknown;
+  }
+
+  export interface RawSalesOrderItem {
+    salesOrder: string;
+    salesOrderItem: string;
+    material?: string;
+    requestedQuantity?: string;
+    requestedQuantityUnit?: string;
+    netAmount?: string;
+    transactionCurrency?: string;
+    materialGroup?: string;
+    productionPlant?: string;
+    [key: string]: unknown;
+  }
+
+  export interface RawProduct {
+    product: string;
+    productType?: string;
+    productOldId?: string;
+    productGroup?: string;
+    baseUnit?: string;
+    division?: string;
+    grossWeight?: string;
+    weightUnit?: string;
+    isMarkedForDeletion?: boolean;
+    [key: string]: unknown;
+  }
+
+  export interface RawBillingDocumentItem {
+    billingDocument: string;
+    billingDocumentItem: string;
+    material?: string;
+    billingQuantity?: string;
+    netAmount?: string;
+    transactionCurrency?: string;
+    referenceSdDocument?: string;
+    referenceSdDocumentItem?: string;
+    [key: string]: unknown;
+  }
+
+  export type NodeType = 'invoice' | 'payment' | 'customer' | 'delivery' | 'sales_order' | 'product';
   
   export interface GraphNode {
     id: string;
@@ -65,7 +118,7 @@ export interface RawInvoice {
     id: string;
     source: string;
     target: string;
-    type: 'PAID_BY' | 'BELONGS_TO' | 'BILLED_BY';
+    type: 'PAID_BY' | 'BELONGS_TO' | 'BILLED_BY' | 'ORDERED_BY' | 'HAS_PRODUCT';
     metadata?: Record<string, unknown>;
   }
   
@@ -86,6 +139,7 @@ export interface RawInvoice {
     resultCount?: number;
     guarded?: boolean;
     error?: string;
+    synthesisError?: string;
   }
   
   export interface NodeResponse {

@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -16,7 +18,32 @@ customers (
   sales_organization   TEXT,
   distribution_channel TEXT,
   division             TEXT,
-  raw_json             TEXT                -- full JSON blob of all fields
+  raw_json             TEXT
+)
+
+sales_orders (
+  id                       TEXT PRIMARY KEY,  -- sales order number e.g. '740506'
+  sales_order_type         TEXT,              -- 'OR'=standard order
+  sales_organization       TEXT,
+  sold_to_party            TEXT,              -- links to customers.id
+  creation_date            TEXT,
+  total_net_amount         REAL,
+  overall_delivery_status  TEXT,              -- 'A'=not started 'B'=partial 'C'=complete
+  transaction_currency     TEXT,
+  raw_json                 TEXT
+)
+
+sales_order_items (
+  id               TEXT PRIMARY KEY,   -- composite: salesOrder-salesOrderItem
+  sales_order      TEXT,               -- links to sales_orders.id
+  item_number      TEXT,
+  material         TEXT,               -- links to products.id
+  quantity         REAL,
+  quantity_unit    TEXT,
+  net_amount       REAL,
+  currency         TEXT,
+  plant            TEXT,
+  raw_json         TEXT
 )
 
 deliveries (
@@ -38,12 +65,24 @@ invoices (
   billing_document_date  TEXT,
   is_cancelled           INTEGER,            -- 0 or 1
   total_net_amount       REAL,
-  transaction_currency   TEXT,               -- e.g. 'INR'
+  transaction_currency   TEXT,
   company_code           TEXT,
   fiscal_year            TEXT,
   accounting_document    TEXT,               -- links to payments.id
   sold_to_party          TEXT,               -- links to customers.id
   raw_json               TEXT
+)
+
+billing_document_items (
+  id                    TEXT PRIMARY KEY,   -- composite: billingDocument-billingDocumentItem
+  billing_document      TEXT,               -- links to invoices.id
+  item_number           TEXT,
+  material              TEXT,               -- links to products.id
+  quantity              REAL,
+  net_amount            REAL,
+  currency              TEXT,
+  reference_delivery    TEXT,               -- links to deliveries.id (referenceSdDocument)
+  raw_json              TEXT
 )
 
 payments (
@@ -62,12 +101,29 @@ payments (
   raw_json                  TEXT
 )
 
-KEY RELATIONSHIPS:
-- invoices.accounting_document = payments.id         (invoice → payment journal entry)
-- invoices.sold_to_party       = customers.id        (invoice → customer)
-- deliveries linked to invoices via time-based ordering (no direct FK)
+products (
+  id            TEXT PRIMARY KEY,  -- product number e.g. 'S8907367001003'
+  product_type  TEXT,
+  product_old_id TEXT,             -- legacy product code
+  product_group TEXT,
+  base_unit     TEXT,
+  division      TEXT,
+  gross_weight  REAL,
+  weight_unit   TEXT,
+  raw_json      TEXT
+)
 
-BUSINESS FLOW: Customer → Delivery → Invoice → Payment (Journal Entry)
+KEY RELATIONSHIPS:
+- sales_orders.sold_to_party           = customers.id          (sales order → customer)
+- sales_order_items.sales_order        = sales_orders.id       (item → order)
+- sales_order_items.material           = products.id           (item → product)
+- billing_document_items.billing_document = invoices.id        (item → invoice)
+- billing_document_items.material      = products.id           (item → product)
+- billing_document_items.reference_delivery = deliveries.id    (item → delivery, the real FK)
+- invoices.accounting_document         = payments.id           (invoice → payment)
+- invoices.sold_to_party               = customers.id          (invoice → customer)
+
+BUSINESS FLOW: Customer → Sales Order → Delivery → Invoice (Billing Doc) → Payment (Journal Entry)
 `;
 
 const DOMAIN_KEYWORDS = [
@@ -76,6 +132,8 @@ const DOMAIN_KEYWORDS = [
   'company', 'o2c', 'sap', 'cancelled', 'flow', 'trace', 'broken',
   'unpaid', 'billed', 'shipped', 'goods', 'movement', 'entry',
   'soldto', 'sold to', 'plant', 'picking', 'status', 'net amount',
+  'product', 'material', 'sales', 'receivable', 'outstanding', 'open',
+  'balance', 'revenue', 'transaction', 'ar ', 'bill', 'ship', 'item',
 ];
 
 export function looksOnTopic(message: string): boolean {
@@ -132,7 +190,9 @@ RULES:
 - Use table aliases. LIMIT 50 unless user asks for more.
 - Use LEFT JOIN to reveal broken flows (NULL = missing link).
 - For invoice traces use invoices.accounting_document to join payments.
-- For customer queries join on invoices.sold_to_party = customers.id.
+- For customer queries join on invoices.sold_to_party = customers.id or sales_orders.sold_to_party = customers.id.
+- To link invoices to deliveries join via billing_document_items.billing_document = invoices.id and billing_document_items.reference_delivery = deliveries.id.
+- To link invoices to products join via billing_document_items.billing_document = invoices.id and billing_document_items.material = products.id.
 - raw_json columns are blobs — do not SELECT * with them unless needed, use specific columns.
 
 EXAMPLE QUERIES:
@@ -140,11 +200,17 @@ EXAMPLE QUERIES:
 "Which billing documents have the highest amounts?"
 {"sql": "SELECT id, billing_document_type, total_net_amount, transaction_currency, creation_date FROM invoices WHERE is_cancelled = 0 ORDER BY total_net_amount DESC LIMIT 10"}
 
-"Trace invoice 90504248"
-{"sql": "SELECT i.id as invoice_id, i.creation_date, i.total_net_amount, i.transaction_currency, i.is_cancelled, c.id as customer_id, c.sales_organization, p.id as payment_id, p.amount, p.posting_date, p.accounting_document_type FROM invoices i LEFT JOIN customers c ON c.id = i.sold_to_party LEFT JOIN payments p ON p.id = i.accounting_document WHERE i.id = '90504248'"}
+"Which products are associated with the most billing documents?"
+{"sql": "SELECT p.id, p.product_old_id, p.product_group, COUNT(DISTINCT bdi.billing_document) as invoice_count FROM products p JOIN billing_document_items bdi ON bdi.material = p.id GROUP BY p.id ORDER BY invoice_count DESC LIMIT 20"}
+
+"Trace the full flow for sales order 740506"
+{"sql": "SELECT so.id as sales_order, so.sold_to_party as customer, d.id as delivery, d.goods_movement_status, i.id as invoice, i.total_net_amount, i.is_cancelled, p.id as payment, p.amount, p.posting_date FROM sales_orders so LEFT JOIN billing_document_items bdi ON bdi.reference_delivery IN (SELECT id FROM deliveries) LEFT JOIN invoices i ON i.id = bdi.billing_document AND i.sold_to_party = so.sold_to_party LEFT JOIN deliveries d ON d.id = bdi.reference_delivery LEFT JOIN payments p ON p.id = i.accounting_document WHERE so.id = '740506' LIMIT 50"}
 
 "Find invoices with no payment"
 {"sql": "SELECT i.id, i.total_net_amount, i.transaction_currency, i.creation_date, i.sold_to_party FROM invoices i LEFT JOIN payments p ON p.id = i.accounting_document WHERE p.id IS NULL AND i.is_cancelled = 0 LIMIT 50"}
+
+"Sales orders that were delivered but not billed"
+{"sql": "SELECT so.id as sales_order, so.sold_to_party, so.total_net_amount, so.overall_delivery_status FROM sales_orders so WHERE so.overall_delivery_status = 'C' AND so.id NOT IN (SELECT DISTINCT so2.id FROM sales_orders so2 JOIN billing_document_items bdi ON bdi.reference_delivery IN (SELECT d.id FROM deliveries d) JOIN invoices i ON i.id = bdi.billing_document AND i.sold_to_party = so2.sold_to_party) LIMIT 50"}
 
 "What is the capital of France?"
 {"error": "OUT_OF_DOMAIN"}

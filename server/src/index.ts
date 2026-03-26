@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -15,7 +18,7 @@ import type {
 const app  = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-const GRAPH_PATH = path.resolve(__dirname, '../../../data/graph.json');
+const GRAPH_PATH = path.resolve(__dirname, '../../data/graph.json');
 
 
 app.use(cors({
@@ -97,10 +100,12 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   const entityId = id.slice(separatorIdx + 1);
 
   const tableMap: Record<string, string> = {
-    invoice:  'invoices',
-    payment:  'payments',
-    customer: 'customers',
-    delivery: 'deliveries',
+    invoice:     'invoices',
+    payment:     'payments',
+    customer:    'customers',
+    delivery:    'deliveries',
+    sales_order: 'sales_orders',
+    product:     'products',
   };
 
   const table = tableMap[nodeType];
@@ -181,31 +186,34 @@ app.post('/api/chat', async (
   }
 
   let answer: string;
+  let synthesisError: string | undefined;
   try {
     answer = await synthesizeAnswer(trimmed, rows);
-  } catch {
+  } catch (err) {
     answer = `Found ${rows.length} record(s).`;
+    synthesisError = (err as Error).message;
   }
 
   return res.json({
     answer,
-    sql:         sqlResult.sql,
-    results:     rows,
-    resultCount: rows.length,
+    sql:          sqlResult.sql,
+    results:      rows,
+    resultCount:  rows.length,
+    synthesisError,
   });
 });
 
 
 app.get('/api/schema', (_req: Request, res: Response) => {
   try {
-    const tables = ['customers', 'deliveries', 'invoices', 'payments'];
+    const tables = ['customers', 'deliveries', 'invoices', 'payments', 'sales_orders', 'products', 'sales_order_items', 'billing_document_items'];
     const counts: Record<string, number | string> = {};
     for (const t of tables) {
       try {
         const row = queryOne<{ n: number }>(`SELECT COUNT(*) as n FROM ${t}`);
         counts[t] = row?.n ?? 0;
       } catch {
-        counts[t] = 'not found — run npm run ingest';
+        counts[t] = 'not found — run pnpm run ingest';
       }
     }
     res.json(counts);

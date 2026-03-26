@@ -1,7 +1,9 @@
 import path from "path";
+import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
 
-const DB_PATH = path.join(process.cwd(), "data", "o2c.sqlite");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_PATH = path.resolve(__dirname, "../../data/o2c.sqlite");
 
 let _db: Database.Database | null = null;
 

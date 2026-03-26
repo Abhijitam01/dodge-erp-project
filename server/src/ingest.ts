@@ -1,17 +1,19 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import type {
   RawInvoice, RawPayment, RawCustomer, RawDelivery,
+  RawSalesOrder, RawSalesOrderItem, RawProduct, RawBillingDocumentItem,
   Graph, GraphNode, GraphEdge, NodeType,
 } from './types.ts';
 
-
-const REPO_ROOT      = path.resolve(__dirname, '../../..');
-const DATA_DIR       = path.join(REPO_ROOT, 'data');
-const SAP_ROOT       = path.join(DATA_DIR, 'sap-o2c-data');
-const DB_PATH        = path.join(DATA_DIR, 'o2c.sqlite');
-const GRAPH_OUT      = path.join(DATA_DIR, 'graph.json');
+const __dirname  = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT  = path.resolve(__dirname, '../..');
+const DATA_DIR   = path.join(REPO_ROOT, 'data');
+const SAP_ROOT   = path.join(DATA_DIR, 'sap-o2c-data');
+const DB_PATH    = path.join(DATA_DIR, 'o2c.sqlite');
+const GRAPH_OUT  = path.join(DATA_DIR, 'graph.json');
 
 function readJSONLDir(dirPath: string): Record<string, unknown>[] {
   if (!fs.existsSync(dirPath)) {
@@ -32,7 +34,7 @@ function readJSONLDir(dirPath: string): Record<string, unknown>[] {
       try {
         records.push(JSON.parse(trimmed));
       } catch {
-       
+        // skip malformed lines
       }
     }
   }
@@ -58,18 +60,59 @@ function toDate(val: unknown): string | null {
 
 function createSchema(db: Database.Database): void {
   db.exec(`
+    DROP TABLE IF EXISTS billing_document_items;
+    DROP TABLE IF EXISTS sales_order_items;
     DROP TABLE IF EXISTS invoice_items;
     DROP TABLE IF EXISTS payments;
     DROP TABLE IF EXISTS invoices;
     DROP TABLE IF EXISTS deliveries;
+    DROP TABLE IF EXISTS sales_orders;
+    DROP TABLE IF EXISTS products;
     DROP TABLE IF EXISTS customers;
 
     CREATE TABLE customers (
-      id                  TEXT PRIMARY KEY,
-      sales_organization  TEXT,
+      id                   TEXT PRIMARY KEY,
+      sales_organization   TEXT,
       distribution_channel TEXT,
-      division            TEXT,
-      raw_json            TEXT
+      division             TEXT,
+      raw_json             TEXT
+    );
+
+    CREATE TABLE products (
+      id             TEXT PRIMARY KEY,
+      product_type   TEXT,
+      product_old_id TEXT,
+      product_group  TEXT,
+      base_unit      TEXT,
+      division       TEXT,
+      gross_weight   REAL,
+      weight_unit    TEXT,
+      raw_json       TEXT
+    );
+
+    CREATE TABLE sales_orders (
+      id                      TEXT PRIMARY KEY,
+      sales_order_type        TEXT,
+      sales_organization      TEXT,
+      sold_to_party           TEXT REFERENCES customers(id),
+      creation_date           TEXT,
+      total_net_amount        REAL,
+      overall_delivery_status TEXT,
+      transaction_currency    TEXT,
+      raw_json                TEXT
+    );
+
+    CREATE TABLE sales_order_items (
+      id           TEXT PRIMARY KEY,
+      sales_order  TEXT REFERENCES sales_orders(id),
+      item_number  TEXT,
+      material     TEXT REFERENCES products(id),
+      quantity     REAL,
+      quantity_unit TEXT,
+      net_amount   REAL,
+      currency     TEXT,
+      plant        TEXT,
+      raw_json     TEXT
     );
 
     CREATE TABLE deliveries (
@@ -85,58 +128,144 @@ function createSchema(db: Database.Database): void {
     );
 
     CREATE TABLE invoices (
-      id                            TEXT PRIMARY KEY,
-      billing_document_type         TEXT,
-      creation_date                 TEXT,
-      billing_document_date         TEXT,
-      is_cancelled                  INTEGER DEFAULT 0,
-      total_net_amount              REAL,
-      transaction_currency          TEXT,
-      company_code                  TEXT,
-      fiscal_year                   TEXT,
-      accounting_document           TEXT,
-      sold_to_party                 TEXT REFERENCES customers(id),
-      raw_json                      TEXT
+      id                    TEXT PRIMARY KEY,
+      billing_document_type TEXT,
+      creation_date         TEXT,
+      billing_document_date TEXT,
+      is_cancelled          INTEGER DEFAULT 0,
+      total_net_amount      REAL,
+      transaction_currency  TEXT,
+      company_code          TEXT,
+      fiscal_year           TEXT,
+      accounting_document   TEXT,
+      sold_to_party         TEXT REFERENCES customers(id),
+      raw_json              TEXT
+    );
+
+    CREATE TABLE billing_document_items (
+      id                 TEXT PRIMARY KEY,
+      billing_document   TEXT REFERENCES invoices(id),
+      item_number        TEXT,
+      material           TEXT REFERENCES products(id),
+      quantity           REAL,
+      net_amount         REAL,
+      currency           TEXT,
+      reference_delivery TEXT REFERENCES deliveries(id),
+      raw_json           TEXT
     );
 
     CREATE TABLE payments (
-      id                            TEXT PRIMARY KEY,
-      company_code                  TEXT,
-      fiscal_year                   TEXT,
-      gl_account                    TEXT,
-      reference_document            TEXT,
-      cost_center                   TEXT,
-      profit_center                 TEXT,
-      transaction_currency          TEXT,
-      amount                        REAL,
-      posting_date                  TEXT,
-      document_date                 TEXT,
-      accounting_document_type      TEXT,
-      raw_json                      TEXT
+      id                       TEXT PRIMARY KEY,
+      company_code             TEXT,
+      fiscal_year              TEXT,
+      gl_account               TEXT,
+      reference_document       TEXT,
+      cost_center              TEXT,
+      profit_center            TEXT,
+      transaction_currency     TEXT,
+      amount                   REAL,
+      posting_date             TEXT,
+      document_date            TEXT,
+      accounting_document_type TEXT,
+      raw_json                 TEXT
     );
 
-    CREATE INDEX IF NOT EXISTS idx_invoices_sold_to   ON invoices(sold_to_party);
-    CREATE INDEX IF NOT EXISTS idx_invoices_acc_doc   ON invoices(accounting_document);
-    CREATE INDEX IF NOT EXISTS idx_invoices_cancelled ON invoices(is_cancelled);
+    CREATE INDEX IF NOT EXISTS idx_invoices_sold_to       ON invoices(sold_to_party);
+    CREATE INDEX IF NOT EXISTS idx_invoices_acc_doc       ON invoices(accounting_document);
+    CREATE INDEX IF NOT EXISTS idx_invoices_cancelled     ON invoices(is_cancelled);
+    CREATE INDEX IF NOT EXISTS idx_sales_orders_sold_to   ON sales_orders(sold_to_party);
+    CREATE INDEX IF NOT EXISTS idx_so_items_order         ON sales_order_items(sales_order);
+    CREATE INDEX IF NOT EXISTS idx_so_items_material      ON sales_order_items(material);
+    CREATE INDEX IF NOT EXISTS idx_bdi_billing_doc        ON billing_document_items(billing_document);
+    CREATE INDEX IF NOT EXISTS idx_bdi_material           ON billing_document_items(material);
+    CREATE INDEX IF NOT EXISTS idx_bdi_ref_delivery       ON billing_document_items(reference_delivery);
   `);
   console.log('  Schema created.');
 }
 
 function loadCustomers(db: Database.Database, records: RawCustomer[]): number {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO customers VALUES (?,?,?,?,?)
-  `);
+  const stmt = db.prepare(`INSERT OR REPLACE INTO customers VALUES (?,?,?,?,?)`);
   const run = db.transaction((rows: RawCustomer[]) => {
     let n = 0;
     for (const r of rows) {
       const id = toStr(r.customer);
       if (!id) continue;
+      stmt.run(id, toStr(r.salesOrganization), toStr(r.distributionChannel), toStr(r.division), JSON.stringify(r));
+      n++;
+    }
+    return n;
+  });
+  return run(records) as number;
+}
+
+function loadProducts(db: Database.Database, records: RawProduct[]): number {
+  const stmt = db.prepare(`INSERT OR REPLACE INTO products VALUES (?,?,?,?,?,?,?,?,?)`);
+  const run = db.transaction((rows: RawProduct[]) => {
+    let n = 0;
+    for (const r of rows) {
+      const id = toStr(r.product);
+      if (!id) continue;
       stmt.run(
         id,
-        toStr(r.salesOrganization),
-        toStr(r.distributionChannel),
+        toStr(r.productType),
+        toStr(r.productOldId),
+        toStr(r.productGroup),
+        toStr(r.baseUnit),
         toStr(r.division),
-        JSON.stringify(r)
+        toFloat(r.grossWeight),
+        toStr(r.weightUnit),
+        JSON.stringify(r),
+      );
+      n++;
+    }
+    return n;
+  });
+  return run(records) as number;
+}
+
+function loadSalesOrders(db: Database.Database, records: RawSalesOrder[]): number {
+  const stmt = db.prepare(`INSERT OR REPLACE INTO sales_orders VALUES (?,?,?,?,?,?,?,?,?)`);
+  const run = db.transaction((rows: RawSalesOrder[]) => {
+    let n = 0;
+    for (const r of rows) {
+      const id = toStr(r.salesOrder);
+      if (!id) continue;
+      stmt.run(
+        id,
+        toStr(r.salesOrderType),
+        toStr(r.salesOrganization),
+        toStr(r.soldToParty),
+        toDate(r.creationDate),
+        toFloat(r.totalNetAmount),
+        toStr(r.overallDeliveryStatus),
+        toStr(r.transactionCurrency),
+        JSON.stringify(r),
+      );
+      n++;
+    }
+    return n;
+  });
+  return run(records) as number;
+}
+
+function loadSalesOrderItems(db: Database.Database, records: RawSalesOrderItem[]): number {
+  const stmt = db.prepare(`INSERT OR REPLACE INTO sales_order_items VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  const run = db.transaction((rows: RawSalesOrderItem[]) => {
+    let n = 0;
+    for (const r of rows) {
+      if (!r.salesOrder || !r.salesOrderItem) continue;
+      const id = `${r.salesOrder}-${r.salesOrderItem}`;
+      stmt.run(
+        id,
+        toStr(r.salesOrder),
+        toStr(r.salesOrderItem),
+        toStr(r.material),
+        toFloat(r.requestedQuantity),
+        toStr(r.requestedQuantityUnit),
+        toFloat(r.netAmount),
+        toStr(r.transactionCurrency),
+        toStr(r.productionPlant),
+        JSON.stringify(r),
       );
       n++;
     }
@@ -146,9 +275,7 @@ function loadCustomers(db: Database.Database, records: RawCustomer[]): number {
 }
 
 function loadDeliveries(db: Database.Database, records: RawDelivery[]): number {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO deliveries VALUES (?,?,?,?,?,?,?,?,?)
-  `);
+  const stmt = db.prepare(`INSERT OR REPLACE INTO deliveries VALUES (?,?,?,?,?,?,?,?,?)`);
   const run = db.transaction((rows: RawDelivery[]) => {
     let n = 0;
     for (const r of rows) {
@@ -163,7 +290,7 @@ function loadDeliveries(db: Database.Database, records: RawDelivery[]): number {
         toDate(r.actualGoodsMovementDate),
         toStr(r.headerBillingBlockReason),
         toStr(r.deliveryBlockReason),
-        JSON.stringify(r)
+        JSON.stringify(r),
       );
       n++;
     }
@@ -173,9 +300,7 @@ function loadDeliveries(db: Database.Database, records: RawDelivery[]): number {
 }
 
 function loadInvoices(db: Database.Database, records: RawInvoice[]): number {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO invoices VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-  `);
+  const stmt = db.prepare(`INSERT OR REPLACE INTO invoices VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
   const run = db.transaction((rows: RawInvoice[]) => {
     let n = 0;
     for (const r of rows) {
@@ -193,7 +318,32 @@ function loadInvoices(db: Database.Database, records: RawInvoice[]): number {
         toStr(r.fiscalYear),
         toStr(r.accountingDocument),
         toStr(r.soldToParty),
-        JSON.stringify(r)
+        JSON.stringify(r),
+      );
+      n++;
+    }
+    return n;
+  });
+  return run(records) as number;
+}
+
+function loadBillingDocumentItems(db: Database.Database, records: RawBillingDocumentItem[]): number {
+  const stmt = db.prepare(`INSERT OR REPLACE INTO billing_document_items VALUES (?,?,?,?,?,?,?,?,?)`);
+  const run = db.transaction((rows: RawBillingDocumentItem[]) => {
+    let n = 0;
+    for (const r of rows) {
+      if (!r.billingDocument || !r.billingDocumentItem) continue;
+      const id = `${r.billingDocument}-${r.billingDocumentItem}`;
+      stmt.run(
+        id,
+        toStr(r.billingDocument),
+        toStr(r.billingDocumentItem),
+        toStr(r.material),
+        toFloat(r.billingQuantity),
+        toFloat(r.netAmount),
+        toStr(r.transactionCurrency),
+        toStr(r.referenceSdDocument),
+        JSON.stringify(r),
       );
       n++;
     }
@@ -203,9 +353,7 @@ function loadInvoices(db: Database.Database, records: RawInvoice[]): number {
 }
 
 function loadPayments(db: Database.Database, records: RawPayment[]): number {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO payments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `);
+  const stmt = db.prepare(`INSERT OR REPLACE INTO payments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const run = db.transaction((rows: RawPayment[]) => {
     let n = 0;
     for (const r of rows) {
@@ -224,7 +372,7 @@ function loadPayments(db: Database.Database, records: RawPayment[]): number {
         toDate(r.postingDate),
         toDate(r.documentDate),
         toStr(r.accountingDocumentType),
-        JSON.stringify(r)
+        JSON.stringify(r),
       );
       n++;
     }
@@ -233,12 +381,14 @@ function loadPayments(db: Database.Database, records: RawPayment[]): number {
   return run(records) as number;
 }
 
-
 function buildGraph(
   invoices: RawInvoice[],
   payments: RawPayment[],
   customers: RawCustomer[],
-  deliveries: RawDelivery[]
+  deliveries: RawDelivery[],
+  salesOrders: RawSalesOrder[],
+  products: RawProduct[],
+  billingDocItems: RawBillingDocumentItem[],
 ): Graph {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -259,87 +409,67 @@ function buildGraph(
     }
   }
 
-  const sortedInvoices = [...invoices].sort(
-    (a, b) => new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime()
-  );
-  const sortedDeliveries = [...deliveries].sort(
-    (a, b) => new Date(a.creationDate ?? 0).getTime() - new Date(b.creationDate ?? 0).getTime()
-  );
+  // Add nodes
+  for (const c of customers) {
+    if (!c.customer) continue;
+    addNode({ id: `customer-${c.customer}`, type: 'customer' as NodeType, label: `Customer ${c.customer}`, metadata: c as unknown as Record<string, unknown> });
+  }
 
-  sortedInvoices.forEach((inv) => {
-    if (!inv.billingDocument) return;
-    addNode({
-      id:       `invoice-${inv.billingDocument}`,
-      type:     'invoice' as NodeType,
-      label:    `Invoice ${inv.billingDocument}`,
-      metadata: inv as unknown as Record<string, unknown>,
-    });
-  });
+  for (const p of products) {
+    if (!p.product) continue;
+    addNode({ id: `product-${p.product}`, type: 'product' as NodeType, label: p.productOldId ? `${p.productOldId} (${p.product})` : `Product ${p.product}`, metadata: p as unknown as Record<string, unknown> });
+  }
 
-  payments.forEach((p) => {
-    if (!p.accountingDocument) return;
-    addNode({
-      id:       `payment-${p.accountingDocument}`,
-      type:     'payment' as NodeType,
-      label:    `Payment ${p.accountingDocument}`,
-      metadata: p as unknown as Record<string, unknown>,
-    });
-  });
+  for (const so of salesOrders) {
+    if (!so.salesOrder) continue;
+    addNode({ id: `sales_order-${so.salesOrder}`, type: 'sales_order' as NodeType, label: `Sales Order ${so.salesOrder}`, metadata: so as unknown as Record<string, unknown> });
+  }
 
-  customers.forEach((c) => {
-    if (!c.customer) return;
-    addNode({
-      id:       `customer-${c.customer}`,
-      type:     'customer' as NodeType,
-      label:    `Customer ${c.customer}`,
-      metadata: c as unknown as Record<string, unknown>,
-    });
-  });
+  for (const d of deliveries) {
+    if (!d.deliveryDocument) continue;
+    addNode({ id: `delivery-${d.deliveryDocument}`, type: 'delivery' as NodeType, label: `Delivery ${d.deliveryDocument}`, metadata: d as unknown as Record<string, unknown> });
+  }
 
-  sortedDeliveries.forEach((d) => {
-    if (!d.deliveryDocument) return;
-    addNode({
-      id:       `delivery-${d.deliveryDocument}`,
-      type:     'delivery' as NodeType,
-      label:    `Delivery ${d.deliveryDocument}`,
-      metadata: d as unknown as Record<string, unknown>,
-    });
-  });
+  for (const inv of invoices) {
+    if (!inv.billingDocument) continue;
+    addNode({ id: `invoice-${inv.billingDocument}`, type: 'invoice' as NodeType, label: `Invoice ${inv.billingDocument}`, metadata: inv as unknown as Record<string, unknown> });
+  }
 
-  sortedInvoices.forEach((inv) => {
-    if (inv.accountingDocument) {
-      addEdge({
-        id:     `invoice-${inv.billingDocument}-payment-${inv.accountingDocument}`,
-        source: `invoice-${inv.billingDocument}`,
-        target: `payment-${inv.accountingDocument}`,
-        type:   'PAID_BY',
-      });
+  for (const pay of payments) {
+    if (!pay.accountingDocument) continue;
+    addNode({ id: `payment-${pay.accountingDocument}`, type: 'payment' as NodeType, label: `Payment ${pay.accountingDocument}`, metadata: pay as unknown as Record<string, unknown> });
+  }
+
+  // Sales order → customer (BELONGS_TO)
+  for (const so of salesOrders) {
+    if (so.salesOrder && so.soldToParty) {
+      addEdge({ id: `so-${so.salesOrder}-cust-${so.soldToParty}`, source: `sales_order-${so.salesOrder}`, target: `customer-${so.soldToParty}`, type: 'BELONGS_TO' });
     }
-  });
+  }
 
-  sortedInvoices.forEach((inv) => {
-    if (inv.soldToParty) {
-      addEdge({
-        id:     `invoice-${inv.billingDocument}-customer-${inv.soldToParty}`,
-        source: `invoice-${inv.billingDocument}`,
-        target: `customer-${inv.soldToParty}`,
-        type:   'BELONGS_TO',
-      });
+  // Invoice → customer (BELONGS_TO)
+  for (const inv of invoices) {
+    if (inv.billingDocument && inv.soldToParty) {
+      addEdge({ id: `inv-${inv.billingDocument}-cust-${inv.soldToParty}`, source: `invoice-${inv.billingDocument}`, target: `customer-${inv.soldToParty}`, type: 'BELONGS_TO' });
     }
-  });
+  }
 
-  const minLen = Math.min(sortedDeliveries.length, sortedInvoices.length);
-  for (let i = 0; i < minLen; i++) {
-    const delivery = sortedDeliveries[i];
-    const invoice  = sortedInvoices[i];
-    if (delivery?.deliveryDocument && invoice?.billingDocument) {
-      addEdge({
-        id:     `delivery-${delivery.deliveryDocument}-invoice-${invoice.billingDocument}`,
-        source: `delivery-${delivery.deliveryDocument}`,
-        target: `invoice-${invoice.billingDocument}`,
-        type:   'BILLED_BY',
-        metadata: { method: 'time-based', confidence: 'medium' },
-      });
+  // Invoice → payment (PAID_BY) — via accounting_document FK
+  for (const inv of invoices) {
+    if (inv.billingDocument && inv.accountingDocument) {
+      addEdge({ id: `inv-${inv.billingDocument}-pay-${inv.accountingDocument}`, source: `invoice-${inv.billingDocument}`, target: `payment-${inv.accountingDocument}`, type: 'PAID_BY' });
+    }
+  }
+
+  // Invoice → delivery (BILLED_BY) and Invoice → product (HAS_PRODUCT) — via billing_document_items real FK
+  for (const bdi of billingDocItems) {
+    if (bdi.billingDocument && bdi.referenceSdDocument) {
+      const eid = `inv-${bdi.billingDocument}-del-${bdi.referenceSdDocument}`;
+      addEdge({ id: eid, source: `invoice-${bdi.billingDocument}`, target: `delivery-${bdi.referenceSdDocument}`, type: 'BILLED_BY' });
+    }
+    if (bdi.billingDocument && bdi.material) {
+      const eid = `inv-${bdi.billingDocument}-prod-${bdi.material}-item-${bdi.billingDocumentItem}`;
+      addEdge({ id: eid, source: `invoice-${bdi.billingDocument}`, target: `product-${bdi.material}`, type: 'HAS_PRODUCT' });
     }
   }
 
@@ -351,29 +481,42 @@ function main(): void {
 
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-  const invoices   = readJSONLDir(path.join(SAP_ROOT, 'billing_document_headers'))   as RawInvoice[];
-  const payments   = readJSONLDir(path.join(SAP_ROOT, 'payments_accounts_receivable')) as RawPayment[];
-  const customers  = readJSONLDir(path.join(SAP_ROOT, 'customer_sales_area_assignments')) as RawCustomer[];
-  const deliveries = readJSONLDir(path.join(SAP_ROOT, 'outbound_delivery_headers'))   as RawDelivery[];
+  console.log('Reading JSONL files...');
+  const invoices       = readJSONLDir(path.join(SAP_ROOT, 'billing_document_headers'))    as RawInvoice[];
+  const billingItems   = readJSONLDir(path.join(SAP_ROOT, 'billing_document_items'))      as RawBillingDocumentItem[];
+  const payments       = readJSONLDir(path.join(SAP_ROOT, 'payments_accounts_receivable')) as RawPayment[];
+  const customers      = readJSONLDir(path.join(SAP_ROOT, 'customer_sales_area_assignments')) as RawCustomer[];
+  const deliveries     = readJSONLDir(path.join(SAP_ROOT, 'outbound_delivery_headers'))   as RawDelivery[];
+  const salesOrders    = readJSONLDir(path.join(SAP_ROOT, 'sales_order_headers'))         as RawSalesOrder[];
+  const salesOrderItems = readJSONLDir(path.join(SAP_ROOT, 'sales_order_items'))          as RawSalesOrderItem[];
+  const products       = readJSONLDir(path.join(SAP_ROOT, 'products'))                    as RawProduct[];
 
-  console.log(`Invoices loaded:   ${invoices.length}`);
-  console.log(`Payments loaded:   ${payments.length}`);
-  console.log(`Customers loaded:  ${customers.length}`);
-  console.log(`Deliveries loaded: ${deliveries.length}`);
+  console.log(`  Invoices:           ${invoices.length}`);
+  console.log(`  Billing items:      ${billingItems.length}`);
+  console.log(`  Payments:           ${payments.length}`);
+  console.log(`  Customers:          ${customers.length}`);
+  console.log(`  Deliveries:         ${deliveries.length}`);
+  console.log(`  Sales orders:       ${salesOrders.length}`);
+  console.log(`  Sales order items:  ${salesOrderItems.length}`);
+  console.log(`  Products:           ${products.length}`);
 
   console.log('\nPopulating SQLite...');
   const db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
 
   createSchema(db);
-  const c = loadCustomers(db, customers);   console.log(`  customers:  ${c}`);
-  const d = loadDeliveries(db, deliveries); console.log(`  deliveries: ${d}`);
-  const inv = loadInvoices(db, invoices);   console.log(`  invoices:   ${inv}`);
-  const pay = loadPayments(db, payments);   console.log(`  payments:   ${pay}`);
+  console.log(`  customers:           ${loadCustomers(db, customers)}`);
+  console.log(`  products:            ${loadProducts(db, products)}`);
+  console.log(`  sales_orders:        ${loadSalesOrders(db, salesOrders)}`);
+  console.log(`  sales_order_items:   ${loadSalesOrderItems(db, salesOrderItems)}`);
+  console.log(`  deliveries:          ${loadDeliveries(db, deliveries)}`);
+  console.log(`  invoices:            ${loadInvoices(db, invoices)}`);
+  console.log(`  billing_doc_items:   ${loadBillingDocumentItems(db, billingItems)}`);
+  console.log(`  payments:            ${loadPayments(db, payments)}`);
   db.close();
 
   console.log('\nBuilding graph.json...');
-  const graph = buildGraph(invoices, payments, customers, deliveries);
+  const graph = buildGraph(invoices, payments, customers, deliveries, salesOrders, products, billingItems);
   console.log(`  Nodes: ${graph.nodes.length}`);
   console.log(`  Edges: ${graph.edges.length}`);
 
