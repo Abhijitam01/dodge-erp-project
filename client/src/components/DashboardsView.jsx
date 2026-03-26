@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { fetchStats } from '../lib/api';
-
-const INDUSTRIES = ['Technology', 'Manufacturing', 'Healthcare', 'Financial Services', 'Retail'];
 
 function formatRevenue(v) {
   if (!v) return '$0';
@@ -17,27 +15,19 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function generateMonthlyTrend(totalRevenue) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
-  const weights = [0.10, 0.11, 0.13, 0.14, 0.15, 0.17, 0.20];
-  return months.map((month, i) => ({
-    month,
-    thisYear: Math.round(totalRevenue * weights[i]),
-    lastYear: Math.round(totalRevenue * weights[i] * 0.82),
-  }));
+function formatMonth(ym) {
+  if (!ym) return '';
+  const [year, month] = ym.split('-');
+  const d = new Date(Number(year), Number(month) - 1);
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
-function MetricCard({ label, value, delta, deltaPositive, vsLabel }) {
+function MetricCard({ label, value, sub }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5">
       <p className="text-sm text-gray-500 mb-3">{label}</p>
-      <div className="flex items-baseline gap-2 mb-1">
-        <p className="text-3xl font-bold text-gray-900">{value}</p>
-        <span className={`text-sm font-semibold ${deltaPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-          {delta}
-        </span>
-      </div>
-      <p className="text-xs text-gray-400">{vsLabel}</p>
+      <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   );
 }
@@ -58,16 +48,6 @@ function EntityBar({ label, value, total, color }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const isActive = status === 'Active';
-  return (
-    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-      isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-    }`}>
-      {status}
-    </span>
-  );
-}
 
 function SavedGraphsSection({ onRestoreGraph }) {
   const [savedGraphs, setSavedGraphs] = useState([]);
@@ -205,7 +185,10 @@ export default function DashboardsView({ onRestoreGraph }) {
   const revenue = stats?.totalRevenue ?? 0;
   const counts = stats?.counts ?? {};
   const topCustomers = stats?.topCustomers ?? [];
-  const trendData = generateMonthlyTrend(revenue);
+  const trendData = (stats?.monthlyRevenue ?? []).map(r => ({
+    month: formatMonth(r.month),
+    revenue: r.revenue,
+  }));
 
   const totalEntityCount = (counts.invoices ?? 0) + (counts.payments ?? 0) +
     (counts.deliveries ?? 0) + (counts.customers ?? 0);
@@ -242,34 +225,10 @@ export default function DashboardsView({ onRestoreGraph }) {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard
-              label="Total Revenue"
-              value={formatRevenue(revenue)}
-              delta="+18.2%"
-              deltaPositive
-              vsLabel="vs last period"
-            />
-            <MetricCard
-              label="Total Customers"
-              value={(counts.customers ?? 0).toLocaleString()}
-              delta="+24.5%"
-              deltaPositive
-              vsLabel="vs last period"
-            />
-            <MetricCard
-              label="Total Invoices"
-              value={(counts.invoices ?? 0).toLocaleString()}
-              delta="+8.3%"
-              deltaPositive
-              vsLabel="vs last period"
-            />
-            <MetricCard
-              label="Payments Collected"
-              value={(counts.payments ?? 0).toLocaleString()}
-              delta="+12.7%"
-              deltaPositive
-              vsLabel="vs last period"
-            />
+            <MetricCard label="Total Revenue" value={formatRevenue(revenue)} sub="from payments" />
+            <MetricCard label="Total Customers" value={(counts.customers ?? 0).toLocaleString()} sub="unique accounts" />
+            <MetricCard label="Total Invoices" value={(counts.invoices ?? 0).toLocaleString()} sub="billing documents" />
+            <MetricCard label="Payments Collected" value={(counts.payments ?? 0).toLocaleString()} sub="posted payments" />
           </div>
 
           {/* Trend + Entity breakdown */}
@@ -277,7 +236,7 @@ export default function DashboardsView({ onRestoreGraph }) {
             {/* Revenue Trend */}
             <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <p className="text-sm font-semibold text-gray-900 mb-0.5">Revenue Trend</p>
-              <p className="text-xs text-gray-400 mb-4">This year vs last year</p>
+              <p className="text-xs text-gray-400 mb-4">Monthly payment receipts</p>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={trendData} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
@@ -286,15 +245,9 @@ export default function DashboardsView({ onRestoreGraph }) {
                   />
                   <Tooltip
                     contentStyle={{ border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
-                    formatter={(v, name) => [formatRevenue(v), name === 'thisYear' ? 'This Year' : 'Last Year']}
+                    formatter={v => [formatRevenue(v), 'Revenue']}
                   />
-                  <Legend
-                    iconType="plainline"
-                    formatter={name => name === 'thisYear' ? 'This Year' : 'Last Year'}
-                    wrapperStyle={{ fontSize: 11 }}
-                  />
-                  <Line type="monotone" dataKey="thisYear" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="lastYear" stroke="#d1d5db" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -320,31 +273,18 @@ export default function DashboardsView({ onRestoreGraph }) {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Account</th>
-                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Industry</th>
                     <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoices</th>
-                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Growth</th>
-                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {topCustomers.map((c, i) => {
-                    const status = i < 7 ? 'Active' : 'At Risk';
-                    const growth = i % 2 === 0 ? `+${(12 + i * 1.5).toFixed(1)}%` : `-${(2 + i * 0.8).toFixed(1)}%`;
-                    const growthPositive = i % 2 === 0;
-                    return (
-                      <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
-                        <td className="px-5 py-3 text-sm text-gray-500">{INDUSTRIES[i % INDUSTRIES.length]}</td>
-                        <td className="px-5 py-3 text-sm text-gray-700 text-right">{c.invoice_count.toLocaleString()}</td>
-                        <td className={`px-5 py-3 text-sm font-medium text-right ${growthPositive ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {growth}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <StatusBadge status={status} />
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {topCustomers.map((c) => (
+                    <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                      <td className="px-5 py-3 text-sm text-gray-700 text-right">{c.invoice_count.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-sm font-semibold text-gray-900 text-right">{formatRevenue(c.revenue)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

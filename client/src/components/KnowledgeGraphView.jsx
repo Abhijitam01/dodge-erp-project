@@ -73,10 +73,10 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
   // Save toast
   const [savedToast, setSavedToast] = useState(false);
 
-  // Auto-switch to highlighted mode when highlights arrive
+  // Stay in full-graph mode when highlights arrive so background nodes remain visible (dimmed)
   useEffect(() => {
     if (highlightedIds && highlightedIds.size > 0) {
-      setGraphMode('highlighted');
+      setGraphMode('full');
     }
   }, [highlightedIds]);
 
@@ -118,7 +118,6 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
       const ids = new Set(res.nodeIds ?? []);
       if (ids.size > 0) {
         onHighlight?.(ids);
-        setGraphMode('highlighted');
       }
     } catch {
       setAskAnswer('Something went wrong. Please try again.');

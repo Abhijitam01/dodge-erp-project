@@ -206,7 +206,8 @@ export default function AskView({ onHighlight, initialQuery, onExploreGraph }) {
     setError(null);
     setShowSql(false);
     setShowHistory(false);
-    onHighlight?.(new Set());
+    // Intentionally do NOT clear highlights — the graph keeps the last
+    // highlighted set until a new query returns its own nodes.
   }
 
   const chartData = result?.results ? detectChartData(result.results) : null;

@@ -311,17 +311,26 @@ app.get('/api/stats', (_req: Request, res: Response) => {
     const revenueRow = queryOne<{ total: number | null }>(`SELECT SUM(CAST(amount AS REAL)) as total FROM payments`);
     const totalRevenue = revenueRow?.total ?? 0;
     // customers table has no name column; name lives in raw_json (e.g. customerName).
-    const topCustomers = query<{ id: string; name: string; invoice_count: number }>(
+    const topCustomers = query<{ id: string; name: string; invoice_count: number; revenue: number }>(
       `SELECT c.id,
               COALESCE(json_extract(c.raw_json, '$.customerName'), c.id) AS name,
-              COUNT(i.id) AS invoice_count
+              COUNT(i.id) AS invoice_count,
+              COALESCE(SUM(CAST(i.total_net_amount AS REAL)), 0) AS revenue
        FROM customers c
-       LEFT JOIN invoices i ON i.sold_to_party = c.id
+       LEFT JOIN invoices i ON i.sold_to_party = c.id AND i.is_cancelled = 0
        GROUP BY c.id
-       ORDER BY invoice_count DESC
+       ORDER BY revenue DESC
        LIMIT 8`
     );
-    res.json({ counts, totalRevenue, topCustomers });
+    const monthlyRevenue = query<{ month: string; revenue: number }>(
+      `SELECT strftime('%Y-%m', posting_date) AS month,
+              SUM(CAST(amount AS REAL)) AS revenue
+       FROM payments
+       WHERE posting_date IS NOT NULL AND posting_date != ''
+       GROUP BY month
+       ORDER BY month`
+    );
+    res.json({ counts, totalRevenue, topCustomers, monthlyRevenue });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

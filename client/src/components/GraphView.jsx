@@ -23,7 +23,7 @@ function DotNode({ data }) {
     borderRadius: '50%',
     background: color,
     cursor: 'pointer',
-    opacity: isDimmed ? 0.12 : 1,
+    opacity: isDimmed ? 0.06 : 1,
     transition: 'all 0.2s',
     boxShadow: isHighlighted ? `0 0 0 2px white, 0 0 0 4px ${color}` : 'none',
   };
@@ -137,15 +137,18 @@ function GraphCanvas({
     const updatedEdges = allEdges
       .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
       .map(e => {
-        const edgeHighlighted =
+        const edgeBetweenHighlighted =
+          applyHighlightStyling &&
+          highlightedIds.has(e.source) && highlightedIds.has(e.target);
+        const edgeTouchesHighlighted =
           applyHighlightStyling &&
           (highlightedIds.has(e.source) || highlightedIds.has(e.target));
         return {
           ...e,
           style: {
-            stroke: edgeHighlighted ? '#3b82f6' : '#93c5fd',
-            strokeWidth: edgeHighlighted ? 2.5 : 1.5,
-            opacity: applyHighlightStyling ? (edgeHighlighted ? 1 : 0.04) : 0.7,
+            stroke: edgeBetweenHighlighted ? '#2563eb' : edgeTouchesHighlighted ? '#93c5fd' : '#93c5fd',
+            strokeWidth: edgeBetweenHighlighted ? 3 : 1.5,
+            opacity: applyHighlightStyling ? (edgeBetweenHighlighted ? 1 : edgeTouchesHighlighted ? 0.3 : 0.03) : 0.7,
           },
         };
       });
