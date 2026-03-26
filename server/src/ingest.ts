@@ -1,3 +1,10 @@
+/**
+ * One-off / batch data pipeline (run via package script, not on every HTTP request).
+ *
+ * Reads SAP O2C JSONL under data/sap-o2c-data/, writes normalized rows into
+ * data/o2c.sqlite and a derived graph to data/graph.json for the UI + API.
+ */
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

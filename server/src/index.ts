@@ -1,8 +1,20 @@
+/**
+ * Main HTTP server ("backend API").
+ *
+ * Big picture:
+ * 1. Express listens on a port and answers URLs like /api/health.
+ * 2. Some routes read files (graph.json) or SQLite (via db.ts).
+ * 3. /api/chat turns the user's English into SQL (llm.ts), runs it safely, then
+ *    asks the LLM again to summarize rows in plain English.
+ */
+
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// ESM modules don't define __dirname automatically; we rebuild it from this file's URL.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load variables from ../../.env (repo root) into process.env — e.g. GROQ_API_KEY, PORT.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -18,22 +30,28 @@ import type {
 const app  = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+// Precomputed graph for the UI (nodes/edges). Built by the ingest script, not by this file.
 const GRAPH_PATH = path.resolve(__dirname, '../../data/graph.json');
 
+// --- Middleware: runs on (almost) every request before your route handler ---
 
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   methods: ['GET', 'POST'],
 }));
 
+// Parse JSON request bodies (e.g. POST /api/chat { "message": "..." }).
 app.use(express.json({ limit: '1mb' }));
 
+// Simple request logger; `next()` hands off to the next middleware or route.
 app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 
+// --- Routes: each app.get / app.post matches a URL + HTTP method ---
 
+/** Is the server up? Is the graph file present? Is the AI key configured? */
 app.get('/api/health', (_req: Request, res: Response<HealthResponse>) => {
   const graphExists = fs.existsSync(GRAPH_PATH);
   let nodeCount: number | undefined;
@@ -57,7 +75,7 @@ app.get('/api/health', (_req: Request, res: Response<HealthResponse>) => {
   });
 });
 
-
+/** Full graph or a filtered subset (?types=invoice,customer) for visualization. */
 app.get('/api/graph', (req: Request, res: Response) => {
   if (!fs.existsSync(GRAPH_PATH)) {
     return res.status(503).json({ error: 'Graph not ready. Run: npm run ingest' });
@@ -84,7 +102,10 @@ app.get('/api/graph', (req: Request, res: Response) => {
   }
 });
 
-
+/**
+ * One business object from SQLite by URL id, e.g. /api/nodes/invoice-90504248
+ * Format: "<nodeType>-<databasePrimaryKey>" → pick table → SELECT * → merge raw_json.
+ */
 app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: string }>) => {
   const raw = req.params.id;
   const id = typeof raw === 'string' ? raw : raw?.[0];
@@ -99,6 +120,7 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   const nodeType = id.slice(0, separatorIdx);
   const entityId = id.slice(separatorIdx + 1);
 
+  // Maps the graph's node "type" string to an actual SQLite table name.
   const tableMap: Record<string, string> = {
     invoice:     'invoices',
     payment:     'payments',
@@ -133,7 +155,10 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   }
 });
 
-
+/**
+ * Natural-language Q&A: question → (LLM) SQL → (SQLite) rows → (LLM) short answer.
+ * The database layer only allows SELECT; see db.ts.
+ */
 app.post('/api/chat', async (
   req: Request<object, ChatResponse, ChatRequest>,
   res: Response<ChatResponse>
@@ -151,8 +176,8 @@ app.post('/api/chat', async (
     return res.status(400).json({ answer: 'message too long (max 500 chars)', error: 'BAD_REQUEST' });
   }
 
+  // Step 1: ask Groq to output JSON { "sql": "..." } or { "error": "OUT_OF_DOMAIN" }.
   const sqlResult = await naturalLanguageToSQL(trimmed);
-
 
   if ('error' in sqlResult) {
     if (sqlResult.error === 'OUT_OF_DOMAIN') {
@@ -173,6 +198,7 @@ app.post('/api/chat', async (
     });
   }
 
+  // Step 2: run the generated SELECT against SQLite (throws if not SELECT).
   let rows: Record<string, unknown>[];
   try {
     rows = query(sqlResult.sql);
@@ -185,6 +211,7 @@ app.post('/api/chat', async (
     });
   }
 
+  // Step 3: second LLM call — explain the rows in normal language (no SQL in the prompt to user).
   let answer: string;
   let synthesisError: string | undefined;
   try {
@@ -203,7 +230,7 @@ app.post('/api/chat', async (
   });
 });
 
-
+/** Row counts per table — handy to see if ingest populated the DB. */
 app.get('/api/schema', (_req: Request, res: Response) => {
   try {
     const tables = ['customers', 'deliveries', 'invoices', 'payments', 'sales_orders', 'products', 'sales_order_items', 'billing_document_items'];
@@ -222,16 +249,16 @@ app.get('/api/schema', (_req: Request, res: Response) => {
   }
 });
 
-
+// No matching route → 404.
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Express error handler (4 args) — catches errors passed via next(err).
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
-
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running at http://localhost:${PORT}`);
