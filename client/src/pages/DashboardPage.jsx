@@ -32,12 +32,19 @@ export default function DashboardPage() {
   function handleRestoreGraph(ids, query) {
     setHighlightedIds(ids);
     setPrefillQuery(query);
-    setActiveView('graph');
+    handleNavigate('graph');
+  }
+
+  function handleNavigate(view) {
+    setActiveView(view);
+    if (view === 'graph') {
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    }
   }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar activeView={activeView} onNavigate={setActiveView} nodeCount={nodeCount} />
+      <Sidebar activeView={activeView} onNavigate={handleNavigate} nodeCount={nodeCount} />
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top bar */}
@@ -57,7 +64,7 @@ export default function DashboardPage() {
           </span>
           {highlightedIds.size > 0 && activeView !== 'graph' && (
             <button
-              onClick={() => setActiveView('graph')}
+              onClick={() => handleNavigate('graph')}
               className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium rounded-full hover:bg-blue-100 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -72,7 +79,7 @@ export default function DashboardPage() {
             <AskView
               initialQuery={prefillQuery}
               onHighlight={handleHighlight}
-              onExploreGraph={() => setActiveView('graph')}
+              onExploreGraph={() => handleNavigate('graph')}
             />
           </div>
           <div style={{ display: activeView === 'graph' ? 'flex' : 'none' }} className="flex-1 overflow-hidden">

@@ -155,25 +155,49 @@ app.get('/api/nodes/:id', (req: Request, res: Response<NodeResponse | { error: s
   }
 });
 
+// Cache of all graph node IDs — loaded once on first use, validated against real data.
+let _graphNodeIds: Set<string> | null = null;
+function getGraphNodeIds(): Set<string> {
+  if (_graphNodeIds) return _graphNodeIds;
+  try {
+    const g = JSON.parse(fs.readFileSync(GRAPH_PATH, 'utf-8')) as Graph;
+    _graphNodeIds = new Set(g.nodes.map(n => n.id));
+  } catch {
+    _graphNodeIds = new Set();
+  }
+  return _graphNodeIds;
+}
+
 /**
  * Inspect SQL result rows and return graph node IDs in "<type>-<id>" format.
- * Covers the four main entity types using their known SQLite primary-key columns.
+ * Validates every candidate against the actual graph so only real nodes are returned.
  */
 function extractNodeIds(rows: Record<string, unknown>[]): string[] {
   if (!rows.length) return [];
+  const graphIds = getGraphNodeIds();
   const ids = new Set<string>();
+
   for (const row of rows) {
-    if (row.sold_to_party != null) ids.add(`customer-${row.sold_to_party}`);
-    if (row.accounting_document != null) ids.add(`invoice-${row.accounting_document}`);
-    if (row.delivery_id != null) ids.add(`delivery-${row.delivery_id}`);
-    // payments primary key is `id`; only tag it if other payment columns are present
-    const colNames = Object.keys(row).join(' ');
-    if (row.id != null && /amount|payment|fiscal/.test(colNames)) {
-      ids.add(`payment-${row.id}`);
+    const candidates: string[] = [];
+
+    // Well-known entity-specific columns
+    if (row.sold_to_party != null) candidates.push(`customer-${row.sold_to_party}`);
+    if (row.accounting_document != null) candidates.push(`invoice-${row.accounting_document}`);
+    if (row.delivery_id != null) candidates.push(`delivery-${row.delivery_id}`);
+    if (row.delivery_document != null) candidates.push(`delivery-${row.delivery_document}`);
+    if (row.billing_document != null) candidates.push(`invoice-${row.billing_document}`);
+    if (row.sales_order != null) candidates.push(`sales_order-${row.sales_order}`);
+
+    // Generic `id` column — try every known type prefix and validate against graph
+    if (row.id != null) {
+      for (const t of ['customer', 'invoice', 'payment', 'delivery', 'sales_order', 'product']) {
+        candidates.push(`${t}-${row.id}`);
+      }
     }
-    // customer rows selected directly (e.g. SELECT * FROM customers)
-    if (row.id != null && colNames.includes('sold_to_party')) {
-      ids.add(`customer-${row.id}`);
+
+    // Only keep IDs that actually exist in the graph
+    for (const c of candidates) {
+      if (graphIds.has(c)) ids.add(c);
     }
   }
   return Array.from(ids);
