@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "client",
   "buildCommand": "pnpm install && pnpm build",
   "outputDirectory": "dist",
   "installCommand": "npm install -g pnpm",
