@@ -14,7 +14,7 @@ function NodePanel({ node, connections, onClose, onQueryNode }) {
     .slice(0, 12);
 
   return (
-    <aside className="w-[280px] shrink-0 flex flex-col bg-white border-l border-gray-200 h-full overflow-hidden">
+    <aside className="w-full sm:w-[280px] sm:shrink-0 flex flex-col bg-white border-t sm:border-t-0 sm:border-l border-gray-200 h-full overflow-hidden">
       <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-gray-100">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{typeLabel}</p>
@@ -196,7 +196,7 @@ export default function KnowledgeGraphView({ highlightedIds, onDegreeMap, onQuer
         )}
       </div>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-col sm:flex-row flex-1 overflow-hidden relative">
         <div className="flex-1 overflow-hidden relative">
           <GraphView
             onNodeSelect={handleNodeSelect}

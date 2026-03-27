@@ -193,7 +193,7 @@ function GraphCanvas({
             <Background variant="dots" color="#d1d5db" gap={40} size={1} />
           </ReactFlow>
 
-          <div className="absolute top-4 left-4 flex gap-2 z-10">
+          <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-10">
             <button
               onClick={() => setMinimized(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-full hover:bg-gray-700 transition-colors shadow-sm"
@@ -201,7 +201,7 @@ function GraphCanvas({
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
               </svg>
-              Minimize
+              <span className="hidden sm:inline">Minimize</span>
             </button>
             <button
               onClick={() => setHideGranular(v => !v)}

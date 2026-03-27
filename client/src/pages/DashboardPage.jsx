@@ -45,7 +45,7 @@ export default function DashboardPage() {
       <Sidebar activeView={activeView} onNavigate={handleNavigate} nodeCount={nodeCount} />
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="h-11 shrink-0 flex items-center px-5 bg-white border-b border-gray-200 gap-3">
+        <header className="h-11 shrink-0 flex items-center px-3 sm:px-5 bg-white border-b border-gray-200 gap-3">
           <button
             onClick={() => navigate('/')}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -65,7 +65,9 @@ export default function DashboardPage() {
               className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium rounded-full hover:bg-blue-100 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              {highlightedIds.size} nodes highlighted — View on graph
+              <span className="hidden sm:inline">{highlightedIds.size} nodes highlighted —</span>
+              <span className="sm:hidden">{highlightedIds.size}</span>
+              {' '}View on graph
             </button>
           )}
         </header>

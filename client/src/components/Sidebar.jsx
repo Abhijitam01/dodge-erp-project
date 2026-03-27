@@ -32,21 +32,21 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ activeView, onNavigate, nodeCount }) {
   return (
-    <aside className="w-[220px] shrink-0 flex flex-col bg-white border-r border-gray-200 h-full">
-      <div className="px-4 pt-5 pb-4 flex items-center gap-2.5">
+    <aside className="w-14 sm:w-[220px] shrink-0 flex flex-col bg-white border-r border-gray-200 h-full">
+      <div className="px-2 sm:px-4 pt-5 pb-4 flex items-center justify-center sm:justify-start gap-2.5">
         <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" fill="none" />
           </svg>
         </div>
-        <div>
+        <div className="hidden sm:block">
           <p className="text-sm font-bold text-gray-900 leading-none">Dodge AI</p>
           <p className="text-xs text-gray-400 mt-0.5">O2C Explorer</p>
         </div>
       </div>
 
-      <nav className="px-2 flex-1">
-        <p className="px-2 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Main</p>
+      <nav className="px-1 sm:px-2 flex-1">
+        <p className="hidden sm:block px-2 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Main</p>
         <ul className="space-y-0.5">
           {NAV_ITEMS.map(item => {
             const isActive = activeView === item.id;
@@ -54,14 +54,15 @@ export default function Sidebar({ activeView, onNavigate, nodeCount }) {
               <li key={item.id}>
                 <button
                   onClick={() => onNavigate(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  title={item.label}
+                  className={`w-full flex items-center justify-center sm:justify-start gap-2.5 px-2 sm:px-3 py-2 rounded-lg text-sm transition-colors ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <span className={isActive ? 'text-blue-600' : 'text-gray-400'}>{item.icon}</span>
-                  {item.label}
+                  <span className="hidden sm:inline">{item.label}</span>
                 </button>
               </li>
             );
@@ -69,13 +70,13 @@ export default function Sidebar({ activeView, onNavigate, nodeCount }) {
         </ul>
       </nav>
 
-      <div className="px-4 py-4 border-t border-gray-100">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Connected Sources</p>
-        <div className="flex items-center gap-2">
+      <div className="px-2 sm:px-4 py-4 border-t border-gray-100">
+        <p className="hidden sm:block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Connected Sources</p>
+        <div className="flex items-center justify-center sm:justify-start gap-2">
           <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
-          <span className="text-xs text-gray-600">SAP ERP</span>
+          <span className="hidden sm:inline text-xs text-gray-600">SAP ERP</span>
           {nodeCount != null && (
-            <span className="ml-auto text-[10px] text-gray-400">{nodeCount.toLocaleString()} nodes</span>
+            <span className="hidden sm:inline ml-auto text-[10px] text-gray-400">{nodeCount.toLocaleString()} nodes</span>
           )}
         </div>
       </div>
